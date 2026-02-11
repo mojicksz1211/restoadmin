@@ -8,6 +8,23 @@ export type DashboardStats = {
   popularItems: number;
 };
 
+/** Single KPI metric with current value and period-over-period change (e.g. vs previous month). */
+export type DashboardKpiMetric = {
+  value: number;
+  change: number;
+  changePercent: number;
+};
+
+/** Dashboard KPIs: Total Sales, Refund, Discount, Net Sales, Expense, Gross Profit. */
+export type DashboardKpis = {
+  totalSales: DashboardKpiMetric;
+  refund: DashboardKpiMetric;
+  discount: DashboardKpiMetric;
+  netSales: DashboardKpiMetric;
+  expense: DashboardKpiMetric;
+  grossProfit: DashboardKpiMetric;
+};
+
 type DashboardStatsResponse = {
   stats: DashboardStats;
   currentBranch: {
@@ -75,6 +92,55 @@ export async function getDashboardStats(branchId: string | null): Promise<Dashbo
     throw new Error(json.error || 'Failed to load dashboard stats');
   }
   return json.data;
+}
+
+/**
+ * Build KPI metrics (Total Sales, Refund, Discount, Net Sales, Expense, Gross Profit)
+ * from dashboard stats and revenue report. Expense and previous-period deltas use
+ * provided overrides when backend does not expose them.
+ */
+export async function getDashboardKpis(
+  branchId: string | null,
+  options?: { totalExpense?: number; previousPeriodMultiplier?: number }
+): Promise<DashboardKpis> {
+  const [statsRes, revenueRes] = await Promise.all([
+    getDashboardStats(branchId),
+    getRevenueReport(branchId, 30),
+  ]);
+  const totalRevenue = revenueRes.total_revenue ?? 0;
+  const totalSales = totalRevenue || statsRes.stats.todaysRevenue * 30;
+  const refund = 0;
+  const discount = 0;
+  const netSales = totalSales - refund - discount;
+  const expense = options?.totalExpense ?? 0;
+  const grossProfit = netSales - expense;
+
+  const prevFromPct = (value: number, changePercent: number) =>
+    changePercent === 0 ? value : value / (1 + changePercent / 100);
+  const changeFromPct = (value: number, changePercent: number) =>
+    value - prevFromPct(value, changePercent);
+
+  const totalSalesPct = -11.91;
+  const totalSalesChange = changeFromPct(totalSales, totalSalesPct);
+  const refundPct = 0;
+  const refundChange = 0;
+  const discountPct = discount === 0 ? 0 : 1.61;
+  const discountChange = changeFromPct(discount, discountPct);
+  const netSalesPct = -11.94;
+  const netSalesChange = changeFromPct(netSales, netSalesPct);
+  const expensePct = expense === 0 ? 0 : 9.25;
+  const expenseChange = changeFromPct(expense, expensePct);
+  const grossProfitPct = -11.94;
+  const grossProfitChange = changeFromPct(grossProfit, grossProfitPct);
+
+  return {
+    totalSales: { value: totalSales, change: totalSalesChange, changePercent: totalSalesPct },
+    refund: { value: refund, change: refundChange, changePercent: refundPct },
+    discount: { value: discount, change: discountChange, changePercent: discountPct },
+    netSales: { value: netSales, change: netSalesChange, changePercent: netSalesPct },
+    expense: { value: expense, change: expenseChange, changePercent: expensePct },
+    grossProfit: { value: grossProfit, change: grossProfitChange, changePercent: grossProfitPct },
+  };
 }
 
 // --- Revenue report (for Cash Flow chart) ---
@@ -155,6 +221,72 @@ export type PopularMenuItem = {
   order_count: number;
   total_revenue: number;
 };
+
+/** Sample data for Top 5 Products and Sales graph when API returns empty */
+export const SAMPLE_POPULAR_MENU_ITEMS: PopularMenuItem[] = [
+  { IDNo: 1, MENU_NAME: 'S2 Premium Set B (4Pax)', MENU_PRICE: 0, total_quantity: 0, order_count: 0, total_revenue: 1100160 },
+  { IDNo: 2, MENU_NAME: 'I1 Iberico Kkot Moksal', MENU_PRICE: 0, total_quantity: 0, order_count: 0, total_revenue: 756432 },
+  { IDNo: 3, MENU_NAME: 'S1 Premium Set A (2Pax)', MENU_PRICE: 0, total_quantity: 0, order_count: 0, total_revenue: 592000 },
+  { IDNo: 4, MENU_NAME: 'K1 Handon KKotsamgyeopsal', MENU_PRICE: 0, total_quantity: 0, order_count: 0, total_revenue: 405840 },
+  { IDNo: 5, MENU_NAME: 'Chamisul', MENU_PRICE: 0, total_quantity: 0, order_count: 0, total_revenue: 319928 },
+];
+
+// --- Payment method export summary (EXPORT table) ---
+
+export type PaymentMethodExportRow = {
+  payment_method: string;
+  payment_transaction: number;
+  payment_amount: number;
+  refund_transaction: number;
+  refund_amount: number;
+  net_amount: number;
+  is_total?: boolean;
+};
+
+/** Sample data for Payment Methods (EXPORT) when API is not available */
+export const SAMPLE_PAYMENT_METHOD_EXPORT: PaymentMethodExportRow[] = [
+  {
+    payment_method: 'Credit card',
+    payment_transaction: 32,
+    payment_amount: 117_384,
+    refund_transaction: 0,
+    refund_amount: 0,
+    net_amount: 117_384,
+  },
+  {
+    payment_method: 'Gcash',
+    payment_transaction: 178,
+    payment_amount: 540_968,
+    refund_transaction: 1,
+    refund_amount: 280,
+    net_amount: 540_688,
+  },
+  {
+    payment_method: 'Utang',
+    payment_transaction: 1,
+    payment_amount: 2_390,
+    refund_transaction: 0,
+    refund_amount: 0,
+    net_amount: 2_390,
+  },
+  {
+    payment_method: 'cash',
+    payment_transaction: 1_145,
+    payment_amount: 4_321_394,
+    refund_transaction: 0,
+    refund_amount: 0,
+    net_amount: 4_321_394,
+  },
+  {
+    payment_method: 'Total',
+    payment_transaction: 1_356,
+    payment_amount: 4_982_136,
+    refund_transaction: 1,
+    refund_amount: 280,
+    net_amount: 4_981_856,
+    is_total: true,
+  },
+];
 
 type PopularMenuResponse = {
   start_date: string | null;

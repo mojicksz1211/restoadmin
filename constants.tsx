@@ -60,12 +60,13 @@ export const MOCK_STAFF: Staff[] = [
   { id: 's10', name: 'Pedro Penduko', role: 'Manager', status: 'Off Duty', branchId: '3', rating: 4.3, email: 'pedro.p@restoadmin.ph', joinedDate: '2023-11-20' },
 ];
 
+/** Sample data for Total Sales time-series chart when API returns empty */
 export const SALES_CHART_DATA: SalesData[] = [
-  { name: 'Mon', sales: 4000, expenses: 3200 },
-  { name: 'Tue', sales: 3000, expenses: 2800 },
-  { name: 'Wed', sales: 2000, expenses: 1900 },
-  { name: 'Thu', sales: 2780, expenses: 2100 },
-  { name: 'Fri', sales: 1890, expenses: 1500 },
-  { name: 'Sat', sales: 2390, expenses: 1800 },
-  { name: 'Sun', sales: 3490, expenses: 2600 },
+  { name: 'Mon', sales: 42500, expenses: 18200 },
+  { name: 'Tue', sales: 38100, expenses: 16800 },
+  { name: 'Wed', sales: 45200, expenses: 19500 },
+  { name: 'Thu', sales: 39800, expenses: 17100 },
+  { name: 'Fri', sales: 52100, expenses: 22400 },
+  { name: 'Sat', sales: 58900, expenses: 25300 },
+  { name: 'Sun', sales: 46700, expenses: 20100 },
 ];
