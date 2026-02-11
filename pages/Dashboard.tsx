@@ -470,15 +470,23 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Total sales: time-series chart (same as restaurantAdmin Total sales chart) */}
-        <div className="xl:col-span-2 bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-2">
-            <h2 className="text-lg font-bold text-slate-900">{t('total_sales')} · {currentContextName}</h2>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-2 h-2 md:w-3 md:h-3 bg-green-500 rounded-full"></div>
-              <span className="text-[10px] md:text-xs text-slate-500 font-medium">{t('total_sales')}</span>
+        <div className="xl:col-span-2 group relative bg-white p-4 md:p-6 rounded-2xl shadow-lg border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
+          {/* Premium gradient accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-green-600" />
+          
+          {/* Subtle background pattern */}
+          <div className="absolute inset-0 opacity-[0.02] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
+          
+          <div className="relative flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-2">
+            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('total_sales')} · {currentContextName}</h2>
+            <div className="flex items-center space-x-2 px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
+              <div className="w-2.5 h-2.5 bg-gradient-to-br from-emerald-500 to-green-600 rounded-full shadow-sm"></div>
+              <span className="text-[10px] md:text-xs text-emerald-700 font-semibold">{t('total_sales')}</span>
             </div>
           </div>
-          <div className="h-64 md:h-80 min-h-[256px]">
+          <div className="relative h-64 md:h-80 min-h-[256px]">
+            {/* Shine effect on hover */}
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent z-10 pointer-events-none" />
             {chartLoading ? (
               <div className="w-full h-full flex items-center justify-center text-slate-400">
                 <Loader2 className="w-8 h-8 animate-spin" />
@@ -486,15 +494,45 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             ) : (
               <ResponsiveContainer width="100%" height={320} minWidth={0}>
                 <BarChart data={displayedSalesChartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} />
-                  <Tooltip 
-                    cursor={{fill: '#f8fafc'}}
-                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                    formatter={(value: number) => [`₱${Number(value).toLocaleString()}`, t('total_sales')]}
+                  <defs>
+                    <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#16a34a" stopOpacity={0.8} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} 
                   />
-                  <Bar dataKey="sales" name={t('total_sales')} fill="#22c55e" radius={[4, 4, 0, 0]} barSize={window.innerWidth < 768 ? 12 : 20} />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}}
+                    tickFormatter={(value) => `₱${(value / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip 
+                    cursor={{fill: 'rgba(34, 197, 94, 0.1)', stroke: '#22c55e', strokeWidth: 1}}
+                    contentStyle={{
+                      borderRadius: '12px', 
+                      border: '1px solid #e2e8f0', 
+                      boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.15)',
+                      backgroundColor: 'white',
+                      padding: '12px 16px'
+                    }}
+                    formatter={(value: number) => [`₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, t('total_sales')]}
+                    labelStyle={{fontWeight: 600, color: '#1e293b', marginBottom: '4px'}}
+                  />
+                  <Bar 
+                    dataKey="sales" 
+                    name={t('total_sales')} 
+                    fill="url(#salesGradient)" 
+                    radius={[6, 6, 0, 0]} 
+                    barSize={window.innerWidth < 768 ? 14 : 24}
+                    style={{filter: 'drop-shadow(0 2px 4px rgba(34, 197, 94, 0.2))'}}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -502,94 +540,201 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         </div>
 
         {/* Top Performing Branches (real data) */}
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-slate-900">{t('top_performing')}</h2>
-            <Trophy className="w-5 h-5 text-yellow-500" />
+        <div className="group relative bg-white p-4 md:p-6 rounded-2xl shadow-lg border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
+          {/* Premium gradient accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600" />
+          
+          {/* Subtle background pattern */}
+          <div className="absolute inset-0 opacity-[0.02] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
+          
+          <div className="relative flex items-center justify-between mb-6">
+            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('top_performing')}</h2>
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-lg blur-sm opacity-30" />
+              <div className="relative bg-gradient-to-br from-yellow-400 to-amber-500 p-2 rounded-lg shadow-lg">
+                <Trophy className="w-5 h-5 text-white drop-shadow-sm" />
+              </div>
+            </div>
           </div>
-          <div className="space-y-4">
+          <div className="relative space-y-3">
             {topBranchesData.map((branch, index) => (
-              <div key={branch.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${
-                    index === 0 ? 'bg-yellow-100 text-yellow-700' : 
-                    index === 1 ? 'bg-slate-200 text-slate-700' :
-                    index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {index + 1}
+              <div key={branch.id} className="group/item relative flex items-center justify-between p-3.5 rounded-xl bg-gradient-to-r from-white to-slate-50/50 hover:from-slate-50 hover:to-emerald-50/30 transition-all duration-300 border border-slate-100 hover:border-emerald-200 hover:shadow-md">
+                <div className="flex items-center space-x-3 flex-1 min-w-0">
+                  <div className={`relative flex-shrink-0 ${
+                    index === 0 ? 'w-9 h-9 bg-gradient-to-br from-yellow-400 to-amber-500 text-white shadow-lg' : 
+                    index === 1 ? 'w-9 h-9 bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-md' :
+                    index === 2 ? 'w-9 h-9 bg-gradient-to-br from-orange-400 to-amber-500 text-white shadow-md' : 
+                    'w-9 h-9 bg-gradient-to-br from-slate-200 to-slate-300 text-slate-600'
+                  } rounded-full flex items-center justify-center font-bold text-xs`}>
+                    {index === 0 && (
+                      <div className="absolute inset-0 bg-gradient-to-br from-yellow-300 to-amber-400 rounded-full blur-sm opacity-50" />
+                    )}
+                    <span className="relative z-10">{index + 1}</span>
                   </div>
-                  <div className="truncate">
-                    <p className="text-sm font-bold text-slate-900 truncate">{branch.name}</p>
-                    <p className="text-[10px] text-slate-400 flex items-center">
-                      <MapPin className="w-2.5 h-2.5 mr-0.5" />
-                      {(branch.address ?? '').split(',')[0] || '—'}
+                  <div className="truncate flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate mb-0.5">{branch.name}</p>
+                    <p className="text-[10px] text-slate-500 flex items-center">
+                      <MapPin className="w-2.5 h-2.5 mr-1 text-slate-400" />
+                      <span className="truncate">{(branch.address ?? '').split(',')[0] || '—'}</span>
                     </p>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-bold text-green-600">₱{(branch.revenue / 1000).toFixed(1)}k</p>
-                  <p className="text-[10px] text-slate-400 font-medium">{t('revenue')}</p>
+                <div className="text-right flex-shrink-0 ml-3">
+                  <div className="px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
+                    <p className="text-sm font-bold text-emerald-700 tabular-nums">₱{(branch.revenue / 1000).toFixed(1)}k</p>
+                    <p className="text-[9px] text-emerald-600 font-medium">{t('revenue')}</p>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-          <button className="w-full mt-4 py-3 text-[10px] font-bold text-slate-500 hover:text-orange-500 transition-colors border-t border-slate-50 uppercase tracking-wider">
-            {t('view_all_rank')}
+          <button className="relative w-full mt-5 py-3 text-[10px] font-bold text-slate-600 hover:text-orange-600 transition-colors border-t border-slate-100 hover:border-orange-200 uppercase tracking-wider group/btn">
+            <span className="relative z-10">{t('view_all_rank')}</span>
+            <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-orange-400 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity" />
           </button>
+          
+          {/* Shine effect on hover */}
+          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
         </div>
       </div>
 
       {/* Top 5 Products + Sales graph by product (restaurantAdmin-style) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-slate-900">{t('top_5_products')}</h2>
-            <Trophy className="w-5 h-5 text-yellow-500" />
+        <div className="group relative bg-white p-5 md:p-6 rounded-2xl shadow-xl border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
+          {/* Premium gradient accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500" />
+          
+          {/* Subtle background pattern */}
+          <div className="absolute inset-0 opacity-[0.03] bg-gradient-to-br from-purple-900 via-pink-900 to-rose-900" />
+          
+          {/* Decorative corner accent */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-100/30 to-pink-100/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          
+          <div className="relative flex items-center justify-between mb-5">
+            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('top_5_products')}</h2>
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-rose-500 rounded-xl blur-md opacity-40" />
+              <div className="relative bg-gradient-to-br from-purple-500 via-pink-500 to-rose-500 p-2.5 rounded-xl shadow-lg">
+                <Trophy className="w-5 h-5 text-white drop-shadow-md" />
+              </div>
+            </div>
           </div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight mb-4">{currentContextName} · Last 7 days</p>
+          
+          <div className="relative mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
+              <div className="w-1.5 h-1.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse" />
+              <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · Last 7 days</p>
+            </div>
+          </div>
+          
           {popularMenuItemsLoading ? (
-            <div className="flex items-center justify-center py-8 text-slate-400">
-              <Loader2 className="w-6 h-6 animate-spin" />
+            <div className="flex items-center justify-center py-12 text-slate-400">
+              <Loader2 className="w-8 h-8 animate-spin" />
             </div>
           ) : (
-            <div className="space-y-0">
-              <div className="flex justify-between items-center mb-2 px-1">
-                <span className="text-[10px] text-slate-400 font-medium">{t('net_sales')}</span>
+            <div className="relative space-y-0">
+              <div className="flex justify-between items-center mb-3 px-2">
+                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{t('net_sales')}</span>
               </div>
               {top5PopularMenuItems.map((item, index) => (
                 <div
                   key={item.IDNo}
-                  className={`flex items-center justify-between py-3 ${index < 4 ? 'border-b border-slate-100' : ''}`}
+                  className={`group/item relative flex items-center justify-between p-3.5 rounded-xl transition-all duration-300 ${
+                    index < 4 ? 'border-b border-slate-100' : ''
+                  } hover:bg-gradient-to-r hover:from-slate-50 hover:to-purple-50/30 hover:shadow-sm hover:border-purple-100`}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: TOP_PRODUCT_COLORS[index] ?? '#94a3b8' }}
-                    />
-                    <span className="text-sm font-medium text-slate-900 truncate">{item.MENU_NAME}</span>
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="relative flex-shrink-0">
+                      <div 
+                        className="w-3 h-3 rounded-full shadow-sm ring-2 ring-white"
+                        style={{ backgroundColor: TOP_PRODUCT_COLORS[index] ?? '#94a3b8' }}
+                      />
+                      {index === 0 && (
+                        <div 
+                          className="absolute inset-0 rounded-full blur-sm opacity-50 animate-pulse"
+                          style={{ backgroundColor: TOP_PRODUCT_COLORS[index] ?? '#94a3b8' }}
+                        />
+                      )}
+                    </div>
+                    <span className="text-sm font-semibold text-slate-900 truncate">{item.MENU_NAME}</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-800 flex-shrink-0 ml-2">
-                    ₱{Number(item.total_revenue ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
+                  <div className="flex-shrink-0 ml-3">
+                    <div className="px-3 py-1.5 bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg border border-slate-200 group-hover/item:from-purple-50 group-hover/item:to-pink-50 group-hover/item:border-purple-200 transition-all">
+                      <span className="text-sm font-bold text-slate-900 tabular-nums">
+                        ₱{Number(item.total_revenue ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           )}
+          
+          {/* Shine effect on hover */}
+          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
         </div>
-        <div className="lg:col-span-2 bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
-            <h2 className="text-lg font-bold text-slate-900">{t('sales_graph_by_product')}</h2>
+        <div className="lg:col-span-2 group relative bg-white p-5 md:p-6 rounded-2xl shadow-xl border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
+          {/* Premium gradient accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+          
+          {/* Subtle background pattern */}
+          <div className="absolute inset-0 opacity-[0.03] bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900" />
+          
+          {/* Decorative corner accent */}
+          <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-indigo-100/40 to-purple-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          
+          <div className="relative flex flex-col sm:flex-row sm:justify-between sm:items-center mb-5 gap-3">
+            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('sales_graph_by_product')}</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              {top5PopularMenuItems.slice(0, 5).map((item, idx) => (
+                <div key={item.IDNo} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200">
+                  <div 
+                    className="w-2 h-2 rounded-full shadow-sm ring-1 ring-white"
+                    style={{ backgroundColor: TOP_PRODUCT_COLORS[idx] ?? '#94a3b8' }}
+                  />
+                  <span className="text-[9px] font-semibold text-slate-700 truncate max-w-[60px]">{item.MENU_NAME}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight mb-4">{currentContextName} · Last 7 days</p>
-          <div className="h-64 md:h-80 min-h-[240px]">
+          
+          <div className="relative mb-5">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-100">
+              <div className="w-1.5 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full animate-pulse" />
+              <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · Last 7 days</p>
+            </div>
+          </div>
+          
+          <div className="relative h-64 md:h-80 min-h-[240px]">
+            {/* Shine effect on hover */}
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent z-10 pointer-events-none" />
+            
             {popularMenuItemsLoading ? (
               <div className="w-full h-full flex items-center justify-center text-slate-400">
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <Loader2 className="w-8 h-8 animate-spin" />
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={300} minWidth={0}>
                 <BarChart data={productSalesStackedChartData} margin={{ left: 8, right: 16, bottom: 24 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <defs>
+                    {top5PopularMenuItems.map((item, idx) => {
+                      const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
+                      const rgb = color.startsWith('#') 
+                        ? {
+                            r: parseInt(color.slice(1, 3), 16),
+                            g: parseInt(color.slice(3, 5), 16),
+                            b: parseInt(color.slice(5, 7), 16)
+                          }
+                        : { r: 148, g: 163, b: 184 };
+                      return (
+                        <linearGradient key={item.IDNo} id={`productGradient${idx}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={`rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`} stopOpacity={1} />
+                          <stop offset="100%" stopColor={`rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})`} stopOpacity={0.85} />
+                        </linearGradient>
+                      );
+                    })}
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.6} />
                   <XAxis
                     dataKey="name"
                     axisLine={false}
@@ -598,20 +743,27 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     angle={-45}
                     textAnchor="end"
                     height={52}
-                    tick={{ fill: '#64748b', fontSize: 10 }}
+                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 500 }}
                   />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: '#64748b', fontSize: 11 }}
-                    tickFormatter={(v) => `₱${Number(v).toLocaleString()}`}
+                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 500 }}
+                    tickFormatter={(v) => `₱${(Number(v) / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
-                    cursor={{ fill: '#f8fafc' }}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                    cursor={{ fill: 'rgba(148, 163, 184, 0.1)', stroke: '#94a3b8', strokeWidth: 1 }}
+                    contentStyle={{ 
+                      borderRadius: '12px', 
+                      border: '1px solid #e2e8f0', 
+                      boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.15)',
+                      backgroundColor: 'white',
+                      padding: '12px 16px'
+                    }}
+                    labelStyle={{ fontWeight: 600, color: '#1e293b', marginBottom: '4px' }}
                     labelFormatter={(label) => String(label)}
                     formatter={(value: number, name: string) => [
-                      `₱${Number(value).toLocaleString()}`,
+                      `₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                       productKeyToName[name] ?? name,
                     ]}
                   />
@@ -620,8 +772,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       key={item.IDNo}
                       dataKey={`p${idx}`}
                       stackId="products"
-                      fill={TOP_PRODUCT_COLORS[idx] ?? '#94a3b8'}
+                      fill={`url(#productGradient${idx})`}
+                      radius={[4, 4, 0, 0]}
                       isAnimationActive={false}
+                      style={{filter: `drop-shadow(0 2px 4px rgba(${TOP_PRODUCT_COLORS[idx] ? 
+                        (() => {
+                          const c = TOP_PRODUCT_COLORS[idx];
+                          if (c.startsWith('#')) {
+                            return `${parseInt(c.slice(1, 3), 16)}, ${parseInt(c.slice(3, 5), 16)}, ${parseInt(c.slice(5, 7), 16)}`;
+                          }
+                          return '148, 163, 184';
+                        })() : '148, 163, 184'}, 0.2))`}}
                     />
                   ))}
                 </BarChart>
@@ -631,46 +792,119 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         </div>
       </div>
 
-      {/* Payment Methods (EXPORT) - restaurantAdmin-style */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="flex items-center gap-2 px-4 md:px-6 py-4 border-b border-slate-100">
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs">
-            EX
+      {/* Payment Methods (EXPORT) - Ultra Premium Design */}
+      <div className="group relative bg-white rounded-2xl shadow-xl border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
+        {/* Premium gradient accent bar */}
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+        
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 opacity-[0.02] bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900" />
+        
+        {/* Decorative corner accent */}
+        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-emerald-100/40 to-teal-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        
+        {/* Premium Header */}
+        <div className="relative flex items-center gap-3 px-5 md:px-7 py-5 border-b border-slate-200 bg-gradient-to-r from-emerald-50/50 via-teal-50/30 to-transparent">
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl blur-sm opacity-40" />
+            <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-sm shadow-lg">
+              EX
+            </div>
           </div>
-          <h2 className="text-base md:text-lg font-bold text-slate-900">EXPORT</h2>
+          <div>
+            <h2 className="text-lg md:text-xl font-bold text-slate-900">EXPORT</h2>
+            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Payment Methods Summary</p>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Premium Table */}
+        <div className="relative overflow-x-auto">
           <table className="min-w-[760px] w-full">
-            <thead className="bg-slate-50">
-              <tr className="text-[10px] md:text-xs text-slate-500 font-bold uppercase tracking-wide">
-                <th className="text-left px-4 md:px-6 py-3">payment method</th>
-                <th className="text-right px-4 py-3">Payment Transaction</th>
-                <th className="text-right px-4 py-3">Payment amount</th>
-                <th className="text-right px-4 py-3">refund transaction</th>
-                <th className="text-right px-4 py-3">Refund amount</th>
-                <th className="text-right px-4 md:px-6 py-3">net amount</th>
+            <thead>
+              <tr className="bg-gradient-to-r from-slate-50 via-slate-100/50 to-slate-50 border-b-2 border-slate-200">
+                <th className="text-left px-5 md:px-7 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-4 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+                    <span>Payment Method</span>
+                  </div>
+                </th>
+                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">Payment Transaction</th>
+                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">Payment Amount</th>
+                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">Refund Transaction</th>
+                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">Refund Amount</th>
+                <th className="text-right px-5 md:px-7 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">
+                  <div className="flex items-center justify-end gap-2">
+                    <span>Net Amount</span>
+                    <div className="w-1 h-4 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+                  </div>
+                </th>
               </tr>
             </thead>
-            <tbody className="text-sm">
-              {paymentMethodExportRows.map((row) => (
+            <tbody className="divide-y divide-slate-100">
+              {paymentMethodExportRows.map((row, index) => (
                 <tr
                   key={row.payment_method}
-                  className={`border-t border-slate-100 ${
-                    row.is_total ? 'bg-slate-50 font-bold text-slate-900' : 'text-slate-700'
+                  className={`group/row transition-all duration-200 ${
+                    row.is_total 
+                      ? 'bg-gradient-to-r from-slate-100 via-emerald-50/30 to-slate-100 font-bold text-slate-900 border-t-2 border-emerald-200' 
+                      : 'hover:bg-gradient-to-r hover:from-slate-50 hover:via-emerald-50/20 hover:to-slate-50 text-slate-700'
                   }`}
                 >
-                  <td className="px-4 md:px-6 py-3">{row.payment_method}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{row.payment_transaction.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{formatPeso(row.payment_amount)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{row.refund_transaction.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{formatPeso(row.refund_amount)}</td>
-                  <td className="px-4 md:px-6 py-3 text-right tabular-nums">{formatPeso(row.net_amount)}</td>
+                  <td className={`px-5 md:px-7 py-4 ${row.is_total ? 'text-base' : 'text-sm font-medium'}`}>
+                    <div className="flex items-center gap-2">
+                      {!row.is_total && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 opacity-60" />
+                      )}
+                      <span className={row.is_total ? 'uppercase tracking-wide' : ''}>{row.payment_method}</span>
+                    </div>
+                  </td>
+                  <td className={`px-4 py-4 text-right tabular-nums ${row.is_total ? 'text-base' : 'text-sm'}`}>
+                    <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 group-hover/row:bg-blue-50 transition-colors">
+                      {row.payment_transaction.toLocaleString()}
+                    </span>
+                  </td>
+                  <td className={`px-4 py-4 text-right tabular-nums ${row.is_total ? 'text-base' : 'text-sm'}`}>
+                    <span className={`inline-block px-2.5 py-1 rounded-md font-semibold ${
+                      row.is_total 
+                        ? 'bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-800' 
+                        : 'bg-emerald-50 text-emerald-700 group-hover/row:bg-emerald-100 transition-colors'
+                    }`}>
+                      {formatPeso(row.payment_amount)}
+                    </span>
+                  </td>
+                  <td className={`px-4 py-4 text-right tabular-nums ${row.is_total ? 'text-base' : 'text-sm'}`}>
+                    <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 group-hover/row:bg-orange-50 transition-colors">
+                      {row.refund_transaction.toLocaleString()}
+                    </span>
+                  </td>
+                  <td className={`px-4 py-4 text-right tabular-nums ${row.is_total ? 'text-base' : 'text-sm'}`}>
+                    <span className={`inline-block px-2.5 py-1 rounded-md font-semibold ${
+                      row.is_total 
+                        ? 'bg-gradient-to-r from-red-100 to-orange-100 text-red-800' 
+                        : row.refund_amount > 0
+                        ? 'bg-red-50 text-red-700 group-hover/row:bg-red-100 transition-colors'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {formatPeso(row.refund_amount)}
+                    </span>
+                  </td>
+                  <td className={`px-5 md:px-7 py-4 text-right tabular-nums ${row.is_total ? 'text-base md:text-lg' : 'text-sm font-semibold'}`}>
+                    <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${
+                      row.is_total 
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg' 
+                        : 'bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-800 border border-emerald-200 group-hover/row:from-emerald-100 group-hover/row:to-teal-100 transition-all'
+                    }`}>
+                      {formatPeso(row.net_amount)}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        
+        {/* Shine effect on hover */}
+        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
       </div>
 
       {/* (Temporarily removed) Inventory Health, Cost Analysis, Efficiency */}
