@@ -20,6 +20,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { BranchOption, AuthUser } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
+import { isKimsBrothersBranchOption } from '../utils/branchUtils';
 
 interface SidebarProps {
   activeTab: string;
@@ -63,6 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       id: 'dashboard', 
       label: t('dashboard'), 
       icon: LayoutDashboard,
+      // Dashboard menu is visible to all, but content/analytics only available for Kim's Brothers
       canAccess: canViewDashboard
     },
     { 

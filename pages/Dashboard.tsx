@@ -52,6 +52,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
 
+  const [isKimsBrothersDashboard, setIsKimsBrothersDashboard] = useState<boolean>(false);
+  const [isDaraejungBranch, setIsDaraejungBranch] = useState<boolean>(false);
+
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     setStatsError(null);
@@ -60,11 +63,20 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       setStats(res.stats);
       setCurrentBranch(res.currentBranch);
       setBranchName(res.currentBranch?.BRANCH_NAME ?? 'All Branches');
+      setIsKimsBrothersDashboard(res.isKimsBrothersDashboard ?? false);
+      
+      // Check if current branch is Daraejung
+      const branchCode = res.currentBranch?.BRANCH_CODE;
+      const branchName = res.currentBranch?.BRANCH_NAME;
+      const isDaraejung = branchCode === 'BR001' || (branchName || '').toLowerCase().includes('daraejung');
+      setIsDaraejungBranch(isDaraejung);
     } catch (err) {
       setStatsError(err instanceof Error ? err.message : 'Failed to load dashboard');
       setStats(null);
       setCurrentBranch(null);
       setBranchName('All Branches');
+      setIsKimsBrothersDashboard(false);
+      setIsDaraejungBranch(false);
     } finally {
       setStatsLoading(false);
     }
@@ -307,16 +319,92 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               : t('chain_wide_insights')}
           </p>
         </div>
-        <button 
-          onClick={generateAIReport}
-          disabled={loadingAI}
-          className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 w-full md:w-auto"
-        >
-          {loadingAI ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-          <span className="text-sm md:text-base">{t('ai_intelligence')}</span>
-        </button>
+        {isKimsBrothersDashboard && (
+          <button 
+            onClick={generateAIReport}
+            disabled={loadingAI}
+            className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 w-full md:w-auto"
+          >
+            {loadingAI ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            <span className="text-sm md:text-base">{t('ai_intelligence')}</span>
+          </button>
+        )}
       </div>
 
+      {/* Simple 4-card KPI display - Available ONLY for Daraejung branch */}
+      {isDaraejungBranch && (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        {statsLoading ? (
+          [...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between animate-pulse">
+              <div className="flex-1">
+                <div className="h-4 bg-slate-200 rounded w-20 mb-2" />
+                <div className="h-8 bg-slate-200 rounded w-28" />
+              </div>
+              <div className="w-14 h-14 bg-slate-100 rounded-xl" />
+            </div>
+          ))
+        ) : stats ? (
+          <>
+            <StatCard 
+              title="Today's Revenue" 
+              value={`₱${(stats.todaysRevenue || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} 
+              icon={DollarSign} 
+              color="bg-blue-500" 
+            />
+            <StatCard 
+              title="Total Orders" 
+              value={(stats.totalOrders || 0).toLocaleString()} 
+              icon={Receipt} 
+              color="bg-blue-500" 
+            />
+            <StatCard 
+              title="Active Tables" 
+              value={(stats.activeTables || 0).toLocaleString()} 
+              icon={Store} 
+              color="bg-blue-500" 
+            />
+            <StatCard 
+              title="Pending Orders" 
+              value={(stats.pendingOrders || 0).toLocaleString()} 
+              icon={Info} 
+              color="bg-blue-500" 
+            />
+          </>
+        ) : (
+          <>
+            <StatCard title="Today's Revenue" value="₱0.00" icon={DollarSign} color="bg-blue-500" />
+            <StatCard title="Total Orders" value="0" icon={Receipt} color="bg-blue-500" />
+            <StatCard title="Active Tables" value="0" icon={Store} color="bg-blue-500" />
+            <StatCard title="Pending Orders" value="0" icon={Info} color="bg-blue-500" />
+          </>
+        )}
+      </div>
+      )}
+
+      {/* Show message if not Kim's Brothers - advanced analytics not available */}
+      {!statsLoading && selectedBranchId !== 'all' && !isKimsBrothersDashboard && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 md:p-12">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
+              <Info className="w-8 h-8 text-slate-400" />
+            </div>
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-2">
+                Advanced Analytics Not Available
+              </h2>
+              <p className="text-sm md:text-base text-slate-600 max-w-md">
+                Advanced analytics, charts, and detailed reports are currently only available for Kim's Brothers branch. 
+                This branch does not have advanced analytics data at this time.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Show advanced analytics content only for Kim's Brothers or "all" branches */}
+      {(isKimsBrothersDashboard || selectedBranchId === 'all') && (
+        <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-6">
         {kpisLoading ? (
           [...Array(6)].map((_, i) => (
@@ -586,6 +674,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       </div>
 
       {/* (Temporarily removed) Inventory Health, Cost Analysis, Efficiency */}
+        </>
+      )}
     </div>
   );
 };
