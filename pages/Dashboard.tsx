@@ -2,17 +2,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell, PieChart, Pie 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { 
   DollarSign, Store, Sparkles, Loader2, 
   TrendingUp, ArrowDownRight, 
-  ArrowUpRight, Info, Trophy, MapPin, RefreshCw, Users,
+  Info, Trophy, MapPin, RefreshCw,
   Tag, Receipt, CircleDollarSign
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
-import { MOCK_BRANCHES, MOCK_INVENTORY, SALES_CHART_DATA } from '../constants';
+import { MOCK_BRANCHES, SALES_CHART_DATA } from '../constants';
 import { getAIInsights } from '../services/geminiService';
 import {
   getDashboardStats,
@@ -39,7 +38,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [loadingAI, setLoadingAI] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [statsError, setStatsError] = useState<string | null>(null);
   const [branchName, setBranchName] = useState<string>('All Branches');
   const [currentBranch, setCurrentBranch] = useState<{ BRANCH_NAME?: string; ADDRESS?: string | null } | null>(null);
   const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number }[]>([]);
@@ -57,7 +55,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
-    setStatsError(null);
     try {
       const res = await getDashboardStats(selectedBranchId);
       setStats(res.stats);
@@ -65,13 +62,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       setBranchName(res.currentBranch?.BRANCH_NAME ?? 'All Branches');
       setIsKimsBrothersDashboard(res.isKimsBrothersDashboard ?? false);
       
-      // Check if current branch is Daraejung
       const branchCode = res.currentBranch?.BRANCH_CODE;
       const branchName = res.currentBranch?.BRANCH_NAME;
       const isDaraejung = branchCode === 'BR001' || (branchName || '').toLowerCase().includes('daraejung');
       setIsDaraejungBranch(isDaraejung);
     } catch (err) {
-      setStatsError(err instanceof Error ? err.message : 'Failed to load dashboard');
       setStats(null);
       setCurrentBranch(null);
       setBranchName('All Branches');
@@ -187,50 +182,19 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   // Context name for titles - use API branch name if available, otherwise fallback to mock
   const currentContextName = branchName !== 'All Branches' ? branchName : (activeBranch ? activeBranch.name : t('all_branches'));
 
-  // Real stats from API (with fallbacks while loading)
   const totalRevenue = stats?.todaysRevenue ?? 0;
   const totalOrders = stats?.totalOrders ?? 0;
   const activeTables = stats?.activeTables ?? 0;
   const pendingOrders = stats?.pendingOrders ?? 0;
-  const popularItems = stats?.popularItems ?? 0;
 
-  // Cost breakdown (mock - backend dashboard has no expenses API)
   const totalExpenses = activeBranch
     ? activeBranch.expenses.labor + activeBranch.expenses.cogs + activeBranch.expenses.operational
     : MOCK_BRANCHES.reduce((acc, curr) => 
         acc + curr.expenses.labor + curr.expenses.cogs + curr.expenses.operational, 0);
 
   const profit = totalRevenue - totalExpenses;
-  const profitMargin = totalRevenue > 0 ? Math.round((profit / totalRevenue) * 100) : 0;
 
-  const costBreakdownData = activeBranch ? [
-    { name: 'COGS', value: activeBranch.expenses.cogs },
-    { name: 'Labor', value: activeBranch.expenses.labor },
-    { name: 'Operational', value: activeBranch.expenses.operational },
-  ] : [
-    { name: 'COGS', value: MOCK_BRANCHES.reduce((a, b) => a + b.expenses.cogs, 0) },
-    { name: 'Labor', value: MOCK_BRANCHES.reduce((a, b) => a + b.expenses.labor, 0) },
-    { name: 'Operational', value: MOCK_BRANCHES.reduce((a, b) => a + b.expenses.operational, 0) },
-  ];
-
-  // Inventory Aggregates (mock - no inventory API on dashboard)
-  const branchInventory = MOCK_INVENTORY.filter(item => 
-    selectedBranchId === 'all' || item.branchId === selectedBranchId
-  );
-  const inventoryStats = {
-    total: branchInventory.length,
-    lowStock: branchInventory.filter(i => i.stock > 0 && i.stock < 20).length,
-    outOfStock: branchInventory.filter(i => i.stock === 0).length,
-    inStock: branchInventory.filter(i => i.stock >= 20).length,
-  };
-
-  const inventoryPieData = [
-    { name: 'In Stock', value: inventoryStats.inStock, color: '#22c55e' },
-    { name: 'Low Stock', value: inventoryStats.lowStock, color: '#f97316' },
-    { name: 'Out of Stock', value: inventoryStats.outOfStock, color: '#ef4444' },
-  ].filter(d => d.value > 0);
-
-  // Colors for Top 5 products list + product sales graph (keep consistent)
+  // Colors for Top 5 products list + product sales graph
   const TOP_PRODUCT_COLORS = ['#78909c', '#9ccc65', '#42a5f5', '#ec407a', '#8b5cf6'] as const;
   const popularHasSignal = popularMenuItems.some((x) =>
     Number(x.total_revenue ?? 0) > 0 || Number(x.total_quantity ?? 0) > 0 || Number(x.order_count ?? 0) > 0
@@ -308,12 +272,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+      {/* Premium Header Section */}
+      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-br from-white via-slate-50/50 to-white border border-slate-200 shadow-lg">
+        {/* Decorative gradient accent */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-t-2xl" />
+        
+        <div className="relative">
+          <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 bg-clip-text text-transparent">
             {branchName !== 'All Branches' ? `${branchName} ${t('dashboard')}` : t('network_overview')}
           </h1>
-          <p className="text-sm md:text-base text-slate-500">
+          <p className="text-sm md:text-base text-slate-600 mt-1.5 font-medium">
             {currentBranch && currentBranch.BRANCH_NAME
               ? `Management for: ${currentBranch.ADDRESS || '—'}`
               : t('chain_wide_insights')}
@@ -323,10 +291,21 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           <button 
             onClick={generateAIReport}
             disabled={loadingAI}
-            className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 w-full md:w-auto"
+            className="group relative bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 text-white px-6 py-3.5 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 w-full md:w-auto overflow-hidden"
           >
-            {loadingAI ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            <span className="text-sm md:text-base">{t('ai_intelligence')}</span>
+            {/* Shine effect */}
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            <div className="relative flex items-center space-x-2">
+              {loadingAI ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <div className="relative">
+                  <div className="absolute inset-0 bg-white/30 rounded-full blur-sm" />
+                  <Sparkles className="w-5 h-5 relative z-10" />
+                </div>
+              )}
+              <span className="text-sm md:text-base">{t('ai_intelligence')}</span>
+            </div>
           </button>
         )}
       </div>
@@ -336,12 +315,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {statsLoading ? (
           [...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between animate-pulse">
-              <div className="flex-1">
-                <div className="h-4 bg-slate-200 rounded w-20 mb-2" />
-                <div className="h-8 bg-slate-200 rounded w-28" />
+            <div key={i} className="relative bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex items-center justify-between overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-50/50 to-transparent animate-pulse" />
+              <div className="relative flex-1">
+                <div className="h-4 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-20 mb-2 animate-pulse" />
+                <div className="h-8 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-28 animate-pulse" />
               </div>
-              <div className="w-14 h-14 bg-slate-100 rounded-xl" />
+              <div className="relative w-14 h-14 bg-gradient-to-br from-slate-200 to-slate-300 rounded-xl animate-pulse" />
             </div>
           ))
         ) : stats ? (
@@ -384,16 +364,25 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
       {/* Show message if not Kim's Brothers - advanced analytics not available */}
       {!statsLoading && selectedBranchId !== 'all' && !isKimsBrothersDashboard && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 md:p-12">
-          <div className="flex flex-col items-center justify-center text-center space-y-4">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
-              <Info className="w-8 h-8 text-slate-400" />
+        <div className="group relative bg-white rounded-2xl shadow-xl border border-slate-200 p-8 md:p-12 overflow-hidden">
+          {/* Premium gradient accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-400 via-slate-500 to-slate-400" />
+          
+          {/* Subtle background pattern */}
+          <div className="absolute inset-0 opacity-[0.02] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
+          
+          <div className="relative flex flex-col items-center justify-center text-center space-y-5">
+            <div className="relative">
+              <div className="absolute inset-0 bg-slate-200 rounded-full blur-xl opacity-50" />
+              <div className="relative w-20 h-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
+                <Info className="w-10 h-10 text-slate-500" />
+              </div>
             </div>
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-2">
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-3">
                 Advanced Analytics Not Available
               </h2>
-              <p className="text-sm md:text-base text-slate-600 max-w-md">
+              <p className="text-sm md:text-base text-slate-600 max-w-md leading-relaxed">
                 Advanced analytics, charts, and detailed reports are currently only available for Kim's Brothers branch. 
                 This branch does not have advanced analytics data at this time.
               </p>
@@ -408,12 +397,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-6">
         {kpisLoading ? (
           [...Array(6)].map((_, i) => (
-            <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between animate-pulse">
-              <div className="flex-1">
-                <div className="h-4 bg-slate-200 rounded w-20 mb-2" />
-                <div className="h-8 bg-slate-200 rounded w-28" />
+            <div key={i} className="relative bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex items-center justify-between overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-50/50 to-transparent animate-pulse" />
+              <div className="relative flex-1">
+                <div className="h-4 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-20 mb-2 animate-pulse" />
+                <div className="h-8 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-28 animate-pulse" />
               </div>
-              <div className="w-14 h-14 bg-slate-100 rounded-xl" />
+              <div className="relative w-14 h-14 bg-gradient-to-br from-slate-200 to-slate-300 rounded-xl animate-pulse" />
             </div>
           ))
         ) : kpis ? (
@@ -438,30 +428,54 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       </div>
 
       {aiReport && (
-        <div className="bg-orange-50 border border-orange-100 p-4 md:p-6 rounded-2xl animate-in zoom-in duration-300">
-          <div className="flex items-center space-x-2 mb-4">
-            <Sparkles className="w-5 h-5 md:w-6 md:h-6 text-orange-600" />
-            <h2 className="text-base md:text-lg font-bold text-orange-900">
+        <div className="group relative bg-gradient-to-br from-orange-50 via-amber-50/50 to-orange-50 border-2 border-orange-200 p-5 md:p-7 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden animate-in zoom-in duration-300">
+          {/* Premium gradient accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600" />
+          
+          {/* Decorative corner accent */}
+          <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-orange-200/40 to-amber-200/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          
+          {/* Shine effect */}
+          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+          
+          <div className="relative flex items-center space-x-3 mb-5">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl blur-sm opacity-40" />
+              <div className="relative bg-gradient-to-br from-orange-500 to-amber-600 p-2.5 rounded-xl shadow-lg">
+                <Sparkles className="w-5 h-5 md:w-6 md:h-6 text-white drop-shadow-sm" />
+              </div>
+            </div>
+            <h2 className="text-lg md:text-xl font-bold text-orange-900">
               AI Strategic Insights
             </h2>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <p className="text-sm md:text-base text-orange-800 leading-relaxed mb-4">{aiReport.summary}</p>
+              <p className="text-sm md:text-base text-orange-900 leading-relaxed mb-5 font-medium">{aiReport.summary}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {aiReport.recommendations.map((rec: string, idx: number) => (
-                  <div key={idx} className="bg-white p-3 rounded-lg border border-orange-200 text-xs md:text-sm text-orange-700 flex items-start space-x-2">
-                    <span className="bg-orange-600 text-white w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">{idx + 1}</span>
-                    <span>{rec}</span>
+                  <div key={idx} className="group/item relative bg-white p-4 rounded-xl border border-orange-200 hover:border-orange-300 hover:shadow-md transition-all duration-200">
+                    <div className="flex items-start space-x-3">
+                      <div className="relative flex-shrink-0">
+                        <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-amber-500 rounded-full blur-sm opacity-30" />
+                        <span className="relative bg-gradient-to-br from-orange-500 to-amber-600 text-white w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-md">
+                          {idx + 1}
+                        </span>
+                      </div>
+                      <span className="text-xs md:text-sm text-orange-800 leading-relaxed pt-0.5">{rec}</span>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="bg-white p-4 rounded-xl border border-orange-200 flex flex-col justify-center items-center text-center">
-              <div className="bg-red-100 p-3 rounded-full mb-2">
-                <ArrowDownRight className="w-5 h-5 md:w-6 md:h-6 text-red-600" />
+            <div className="relative bg-white p-5 rounded-xl border-2 border-orange-200 shadow-lg flex flex-col justify-center items-center text-center hover:border-red-300 transition-colors">
+              <div className="relative mb-3">
+                <div className="absolute inset-0 bg-red-200 rounded-full blur-md opacity-50" />
+                <div className="relative bg-gradient-to-br from-red-100 to-orange-100 p-4 rounded-full">
+                  <ArrowDownRight className="w-6 h-6 md:w-7 md:h-7 text-red-600" />
+                </div>
               </div>
-              <h3 className="text-xs md:text-sm font-bold text-slate-800 mb-0.5">Focus Required:</h3>
+              <h3 className="text-xs md:text-sm font-bold text-slate-800 mb-1 uppercase tracking-wider">Focus Required:</h3>
               <p className="text-sm md:text-base text-red-600 font-bold">{aiReport.urgentBranch}</p>
             </div>
           </div>
