@@ -41,6 +41,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [branchName, setBranchName] = useState<string>('All Branches');
+  const [currentBranch, setCurrentBranch] = useState<{ BRANCH_NAME?: string; ADDRESS?: string | null } | null>(null);
   const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
@@ -57,10 +58,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     try {
       const res = await getDashboardStats(selectedBranchId);
       setStats(res.stats);
+      setCurrentBranch(res.currentBranch);
       setBranchName(res.currentBranch?.BRANCH_NAME ?? 'All Branches');
     } catch (err) {
       setStatsError(err instanceof Error ? err.message : 'Failed to load dashboard');
       setStats(null);
+      setCurrentBranch(null);
+      setBranchName('All Branches');
     } finally {
       setStatsLoading(false);
     }
@@ -168,8 +172,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     ? null 
     : MOCK_BRANCHES.find(b => b.id === selectedBranchId);
 
-  // Context name for titles
-  const currentContextName = activeBranch ? activeBranch.name : t('all_branches');
+  // Context name for titles - use API branch name if available, otherwise fallback to mock
+  const currentContextName = branchName !== 'All Branches' ? branchName : (activeBranch ? activeBranch.name : t('all_branches'));
 
   // Real stats from API (with fallbacks while loading)
   const totalRevenue = stats?.todaysRevenue ?? 0;
@@ -295,11 +299,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-            {activeBranch ? `${activeBranch.name} ${t('dashboard')}` : t('network_overview')}
+            {branchName !== 'All Branches' ? `${branchName} ${t('dashboard')}` : t('network_overview')}
           </h1>
           <p className="text-sm md:text-base text-slate-500">
-            {activeBranch 
-              ? `Management for: ${activeBranch.location}` 
+            {currentBranch && currentBranch.BRANCH_NAME
+              ? `Management for: ${currentBranch.ADDRESS || '—'}`
               : t('chain_wide_insights')}
           </p>
         </div>
