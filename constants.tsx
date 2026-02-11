@@ -69,34 +69,3 @@ export const SALES_CHART_DATA: SalesData[] = [
   { name: 'Sat', sales: 2390, expenses: 1800 },
   { name: 'Sun', sales: 3490, expenses: 2600 },
 ];
-
-export const TRANSLATIONS: Record<string, Record<string, string>> = {
-  en: {
-    dashboard: "Dashboard",
-    branches: "Branches",
-    menu: "Menu",
-    orders: "Orders",
-    inventory: "Inventory",
-    staff: "Staff Members",
-    user_mgmt: "User Management",
-    settings: "Settings",
-    revenue: "Revenue",
-    search_placeholder: "Search anything across the platform...",
-    viewing: "Viewing",
-    reset: "Reset"
-  },
-  ph: {
-    dashboard: "Dashboard",
-    branches: "Mga Sangay",
-    menu: "Menu",
-    orders: "Mga Order",
-    inventory: "Inbentaryo",
-    staff: "Mga Kawani",
-    user_mgmt: "Pamamahala ng User",
-    settings: "Mga Setting",
-    revenue: "Kita",
-    search_placeholder: "Maghanap sa buong platform...",
-    viewing: "Tinitingnan",
-    reset: "I-reset"
-  }
-};

@@ -12,16 +12,18 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Bell, Search, Info, Globe, ChevronDown, Menu as MenuIcon, X, Zap, User } from 'lucide-react';
-import { MOCK_BRANCHES, MOCK_STAFF, TRANSLATIONS } from './constants';
+import { MOCK_BRANCHES, MOCK_STAFF } from './constants';
 import { AuthUser, BranchOption } from './types';
 import { checkSession, getMe, getAccessToken, logout } from './services/authService';
 import { getBranchOptions, setCurrentBranch } from './services/branchService';
 import { PERMISSION_LEVELS } from './utils/permissions';
+import { useTranslation } from 'react-i18next';
+import { SupportedLocale } from './i18n';
 
 const App: React.FC = () => {
+  const { t, i18n } = useTranslation('common');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
-  const [lang, setLang] = useState<'en' | 'ph'>('en');
   const [isLangOpen, setIsLangOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnlineOverlayOpen, setIsOnlineOverlayOpen] = useState(false);
@@ -30,7 +32,7 @@ const App: React.FC = () => {
   const [branchOptions, setBranchOptions] = useState<BranchOption[]>([]);
   const [branchOptionsLoading, setBranchOptionsLoading] = useState(false);
 
-  const t = TRANSLATIONS[lang];
+  const lang = (i18n.language?.startsWith('ko') ? 'ko' : 'en') as SupportedLocale;
 
   const currentBranch = selectedBranchId === 'all' 
     ? null 
@@ -184,7 +186,7 @@ const App: React.FC = () => {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-        Loading...
+        {t('loading')}
       </div>
     );
   }
@@ -214,8 +216,8 @@ const App: React.FC = () => {
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                <h3 className="font-bold text-slate-900">Online Now</h3>
-                <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">{onlineStaff.length} Live</span>
+                <h3 className="font-bold text-slate-900">{t('online_now')}</h3>
+                <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">{onlineStaff.length} {t('live')}</span>
               </div>
               <button 
                 onClick={() => setIsOnlineOverlayOpen(false)}
@@ -246,7 +248,7 @@ const App: React.FC = () => {
                           </div>
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                           <button className="text-[10px] font-bold text-orange-600 hover:underline">Message</button>
+                           <button className="text-[10px] font-bold text-orange-600 hover:underline">{t('message')}</button>
                         </div>
                       </div>
                     ))}
@@ -258,7 +260,7 @@ const App: React.FC = () => {
             <div className="p-4 bg-slate-50 border-t border-slate-100">
                <button className="w-full py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all flex items-center justify-center space-x-2">
                  <User className="w-4 h-4" />
-                 <span>View Global Team</span>
+                 <span>{t('view_global_team')}</span>
                </button>
             </div>
           </div>
@@ -272,7 +274,6 @@ const App: React.FC = () => {
         onBranchChange={handleBranchChange}
         branchOptions={branchOptions}
         branchOptionsLoading={branchOptionsLoading}
-        lang={lang}
         user={authUser}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -293,7 +294,7 @@ const App: React.FC = () => {
               <Search className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" />
               <input 
                 type="text" 
-                placeholder={t.search_placeholder} 
+                placeholder={t('search_placeholder')} 
                 className="bg-transparent border-none focus:outline-none text-sm w-full"
               />
             </div>
@@ -306,7 +307,7 @@ const App: React.FC = () => {
                   onClick={() => setSelectedBranchId('all')}
                   className="ml-1 hover:underline text-orange-900 opacity-60"
                 >
-                  {t.reset}
+                  {t('reset')}
                 </button>
               </div>
             )}
@@ -329,7 +330,7 @@ const App: React.FC = () => {
                 className="flex items-center space-x-2 bg-white border border-slate-200 px-2 md:px-3 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
               >
                 <span className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center bg-slate-100 rounded-md overflow-hidden">
-                  {lang === 'en' ? '🇺🇸' : '🇵🇭'}
+                  {lang === 'en' ? '🇺🇸' : '🇰🇷'}
                 </span>
                 <span className="uppercase hidden sm:inline">{lang}</span>
                 <ChevronDown className={`w-3 h-3 transition-transform ${isLangOpen ? 'rotate-180' : ''}`} />
@@ -337,16 +338,16 @@ const App: React.FC = () => {
               {isLangOpen && (
                 <div className="absolute top-full right-0 mt-2 w-32 bg-white border border-slate-100 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
                   <button 
-                    onClick={() => { setLang('en'); setIsLangOpen(false); }}
+                    onClick={() => { i18n.changeLanguage('en'); setIsLangOpen(false); }}
                     className="w-full flex items-center space-x-2 px-4 py-3 text-xs font-bold text-slate-600 hover:bg-slate-50"
                   >
-                    <span>🇺🇸</span><span>English</span>
+                    <span>🇺🇸</span><span>{t('english')}</span>
                   </button>
                   <button 
-                    onClick={() => { setLang('ph'); setIsLangOpen(false); }}
+                    onClick={() => { i18n.changeLanguage('ko'); setIsLangOpen(false); }}
                     className="w-full flex items-center space-x-2 px-4 py-3 text-xs font-bold text-slate-600 hover:bg-slate-50"
                   >
-                    <span>🇵🇭</span><span>Filipino</span>
+                    <span>🇰🇷</span><span>{t('korean')}</span>
                   </button>
                 </div>
               )}
@@ -364,7 +365,7 @@ const App: React.FC = () => {
                 <p className="text-sm font-bold text-slate-900 leading-none">
                   {authUser.firstname || authUser.username} {authUser.lastname}
                 </p>
-                <p className="text-[10px] text-green-500 font-bold uppercase mt-1">Authenticated</p>
+                <p className="text-[10px] text-green-500 font-bold uppercase mt-1">{t('authenticated')}</p>
               </div>
               <img 
                 src="https://picsum.photos/40/40?random=10" 
@@ -375,7 +376,7 @@ const App: React.FC = () => {
                 onClick={handleLogout}
                 className="hidden md:inline-flex text-xs font-bold text-slate-500 hover:text-orange-600 transition-colors"
               >
-                Logout
+                {t('logout')}
               </button>
             </div>
           </div>

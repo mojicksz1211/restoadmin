@@ -1,4 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   Cell, PieChart, Pie 
@@ -6,7 +8,7 @@ import {
 import { 
   DollarSign, Store, Sparkles, Loader2, 
   TrendingUp, Package, ArrowDownRight, 
-  ArrowUpRight, Info, Trophy, MapPin, RefreshCw
+  ArrowUpRight, Info, Trophy, MapPin, RefreshCw, Users
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { MOCK_BRANCHES, MOCK_INVENTORY } from '../constants';
@@ -26,6 +28,7 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
+  const { t } = useTranslation('common');
   const [aiReport, setAiReport] = useState<any>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -135,8 +138,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     ? null 
     : MOCK_BRANCHES.find(b => b.id === selectedBranchId);
 
-  // Context name: from API when single branch, else "All Branches"
-  const currentContextName = selectedBranchId === 'all' ? 'All Branches' : branchName;
+  // Context name for titles
+  const currentContextName = activeBranch ? activeBranch.name : t('all_branches');
 
   // Real stats from API (with fallbacks while loading)
   const totalRevenue = stats?.todaysRevenue ?? 0;
@@ -150,6 +153,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     ? activeBranch.expenses.labor + activeBranch.expenses.cogs + activeBranch.expenses.operational
     : MOCK_BRANCHES.reduce((acc, curr) => 
         acc + curr.expenses.labor + curr.expenses.cogs + curr.expenses.operational, 0);
+
+  const profit = totalRevenue - totalExpenses;
+  const profitMargin = totalRevenue > 0 ? Math.round((profit / totalRevenue) * 100) : 0;
 
   const costBreakdownData = activeBranch ? [
     { name: 'COGS', value: activeBranch.expenses.cogs },
@@ -183,71 +189,29 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-            {selectedBranchId === 'all' ? "Network Overview" : `${branchName} Dashboard`}
+            {activeBranch ? `${activeBranch.name} ${t('dashboard')}` : t('network_overview')}
           </h1>
           <p className="text-sm md:text-base text-slate-500">
-            {selectedBranchId === 'all' 
-              ? "Chain-wide enterprise insights." 
-              : `Management for: ${branchName}`}
+            {activeBranch 
+              ? `Management for: ${activeBranch.location}` 
+              : t('chain_wide_insights')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => { loadStats(); loadChart(); loadTopBranches(); loadPopularMenuItems(); }}
-            disabled={statsLoading || chartLoading}
-            className="bg-white border border-slate-200 text-slate-700 px-4 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-sm hover:bg-slate-50 disabled:opacity-50"
-            title="Refresh stats and chart"
-          >
-            <RefreshCw className={`w-5 h-5 ${(statsLoading || chartLoading) ? 'animate-spin' : ''}`} />
-            <span className="text-sm md:text-base">Refresh</span>
-          </button>
-          <button 
-            onClick={generateAIReport}
-            disabled={loadingAI}
-            className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 w-full md:w-auto"
-          >
-            {loadingAI ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            <span className="text-sm md:text-base">AI Intelligence</span>
-          </button>
-        </div>
+        <button 
+          onClick={generateAIReport}
+          disabled={loadingAI}
+          className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 w-full md:w-auto"
+        >
+          {loadingAI ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+          <span className="text-sm md:text-base">{t('ai_intelligence')}</span>
+        </button>
       </div>
 
-      {statsError && (
-        <div className="bg-red-50 border border-red-100 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center justify-between">
-          <span>{statsError}</span>
-          <button onClick={loadStats} className="text-red-600 font-semibold hover:underline">Retry</button>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <StatCard 
-          title="Today's Revenue" 
-          value={statsLoading ? '—' : `₱${Number(totalRevenue).toLocaleString()}`} 
-          icon={DollarSign} 
-          trend={statsLoading ? '' : 'From billing'} 
-          color="bg-green-500" 
-        />
-        <StatCard 
-          title="Today's Orders" 
-          value={statsLoading ? '—' : String(totalOrders)} 
-          icon={TrendingUp} 
-          trend={statsLoading ? '' : 'Order items today'} 
-          color="bg-blue-600" 
-        />
-        <StatCard 
-          title="Active Tables" 
-          value={statsLoading ? '—' : String(activeTables)} 
-          icon={Store} 
-          trend={statsLoading ? '' : 'Occupied'} 
-          color="bg-purple-500" 
-        />
-        <StatCard 
-          title="Pending Orders" 
-          value={statsLoading ? '—' : String(pendingOrders)} 
-          icon={Package} 
-          trend={statsLoading ? '' : 'Kitchen queue'} 
-          color="bg-red-500" 
-        />
+        <StatCard title={t('total_revenue')} value={`₱${totalRevenue.toLocaleString()}`} icon={DollarSign} trend="+12.5%" color="bg-green-500" />
+        <StatCard title={t('net_profit')} value={`₱${profit.toLocaleString()}`} icon={TrendingUp} trend={t('trend_percent_margin', { percent: profitMargin })} color="bg-blue-600" />
+        <StatCard title={t('inv_alerts')} value={inventoryStats.lowStock + inventoryStats.outOfStock} icon={Package} trend={t('trend_urgent')} color="bg-red-500" />
+        <StatCard title={t('avg_rating')} value="4.8" icon={Users} trend={t('trend_excellent')} color="bg-purple-500" />
       </div>
 
       {aiReport && (
@@ -285,13 +249,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         {/* Cash Flow: Revenue (last 7 days from API) */}
         <div className="xl:col-span-2 bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-2">
-            <h2 className="text-lg font-bold text-slate-900">Cash Flow: {currentContextName}</h2>
+            <h2 className="text-lg font-bold text-slate-900">{t('cash_flow')}: {currentContextName}</h2>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-1.5">
                 <div className="w-2 h-2 md:w-3 md:h-3 bg-orange-500 rounded-full"></div>
-                <span className="text-[10px] md:text-xs text-slate-500 font-medium">Revenue</span>
+                <span className="text-[10px] md:text-xs text-slate-500 font-medium">{t('revenue')}</span>
               </div>
-              <span className="text-[10px] md:text-xs text-slate-400">Last 7 days</span>
+              <div className="flex items-center space-x-1.5">
+                <div className="w-2 h-2 md:w-3 md:h-3 bg-slate-200 rounded-full"></div>
+                <span className="text-[10px] md:text-xs text-slate-500 font-medium">{t('expenses')}</span>
+              </div>
             </div>
           </div>
           <div className="h-64 md:h-80 min-h-[256px]">
@@ -328,43 +295,38 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         {/* Top Performing Branches (real data) */}
         <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-slate-900">Top Performing</h2>
+            <h2 className="text-lg font-bold text-slate-900">{t('top_performing')}</h2>
             <Trophy className="w-5 h-5 text-yellow-500" />
           </div>
-          {topBranchesLoading ? (
-            <div className="flex items-center justify-center py-8 text-slate-400">
-              <Loader2 className="w-6 h-6 animate-spin" />
-            </div>
-          ) : topBranchesData.length === 0 ? (
-            <p className="text-sm text-slate-500 py-6 text-center">No branch data</p>
-          ) : (
-            <div className="space-y-4">
-              {topBranchesData.map((branch, index) => (
-                <div key={branch.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${
-                      index === 0 ? 'bg-yellow-100 text-yellow-700' :
-                      index === 1 ? 'bg-slate-200 text-slate-700' :
-                      index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {index + 1}
-                    </div>
-                    <div className="truncate">
-                      <p className="text-sm font-bold text-slate-900 truncate">{branch.name}</p>
-                      <p className="text-[10px] text-slate-400 flex items-center">
-                        <MapPin className="w-2.5 h-2.5 mr-0.5" />
-                        {(branch.address || '—').split(',')[0]}
-                      </p>
-                    </div>
+          <div className="space-y-4">
+            {topBranchesData.map((branch, index) => (
+              <div key={branch.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                    index === 0 ? 'bg-yellow-100 text-yellow-700' : 
+                    index === 1 ? 'bg-slate-200 text-slate-700' :
+                    index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {index + 1}
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold text-green-600">₱{Number(branch.revenue).toLocaleString()}</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Today</p>
+                  <div className="truncate">
+                    <p className="text-sm font-bold text-slate-900 truncate">{branch.name}</p>
+                    <p className="text-[10px] text-slate-400 flex items-center">
+                      <MapPin className="w-2.5 h-2.5 mr-0.5" />
+                      {(branch.address ?? '').split(',')[0] || '—'}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="text-right flex-shrink-0">
+                  <p className="text-sm font-bold text-green-600">₱{(branch.revenue / 1000).toFixed(1)}k</p>
+                  <p className="text-[10px] text-slate-400 font-medium">{t('revenue')}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button className="w-full mt-4 py-3 text-[10px] font-bold text-slate-500 hover:text-orange-500 transition-colors border-t border-slate-50 uppercase tracking-wider">
+            {t('view_all_rank')}
+          </button>
         </div>
       </div>
 
@@ -373,7 +335,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Inventory Health</h2>
+              <h2 className="text-lg font-bold text-slate-900">{t('inventory_health')}</h2>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{currentContextName}</p>
             </div>
             <Info className="w-4 h-4 text-slate-400 cursor-help" />
@@ -400,21 +362,21 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               </div>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-2xl font-bold text-slate-900">{inventoryStats.total}</span>
-                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Items</span>
+                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">{t('items')}</span>
               </div>
             </div>
           </div>
 
           <div className="space-y-2.5">
             {[
-              { label: 'Optimal Stock', val: inventoryStats.inStock, color: 'bg-green-50 text-green-700', dot: 'bg-green-500' },
-              { label: 'Low Stock Alert', val: inventoryStats.lowStock, color: 'bg-orange-50 text-orange-700', dot: 'bg-orange-500' },
-              { label: 'Out of Stock', val: inventoryStats.outOfStock, color: 'bg-red-50 text-red-700', dot: 'bg-red-500' },
+              { key: 'optimal_stock', val: inventoryStats.inStock, color: 'bg-green-50 text-green-700', dot: 'bg-green-500' },
+              { key: 'low_stock_alert', val: inventoryStats.lowStock, color: 'bg-orange-50 text-orange-700', dot: 'bg-orange-500' },
+              { key: 'out_of_stock', val: inventoryStats.outOfStock, color: 'bg-red-50 text-red-700', dot: 'bg-red-500' },
             ].map(row => (
-              <div key={row.label} className={`flex items-center justify-between p-2.5 rounded-xl border border-slate-50 ${row.color}`}>
+              <div key={row.key} className={`flex items-center justify-between p-2.5 rounded-xl border border-slate-50 ${row.color}`}>
                 <div className="flex items-center space-x-2">
                   <div className={`w-2 h-2 rounded-full ${row.dot}`}></div>
-                  <span className="text-[10px] font-bold uppercase tracking-tight">{row.label}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-tight">{t(row.key)}</span>
                 </div>
                 <span className="font-bold text-sm">{row.val}</span>
               </div>
@@ -424,14 +386,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
         {/* Cost Analysis */}
         <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
-          <h2 className="text-lg font-bold text-slate-900 mb-1">Cost Analysis</h2>
+          <h2 className="text-lg font-bold text-slate-900 mb-1">{t('cost_analysis')}</h2>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight mb-6">{currentContextName}</p>
           
           <div className="space-y-6">
             {costBreakdownData.map((item, idx) => (
               <div key={item.name}>
                 <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-xs font-bold text-slate-600">{item.name}</span>
+                  <span className="text-xs font-bold text-slate-600">{t(item.name.toLowerCase())}</span>
                   <span className="text-xs font-bold text-slate-900">₱{item.value.toLocaleString()}</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -440,13 +402,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     style={{ width: `${(item.value / totalExpenses * 100).toFixed(0)}%` }}
                   ></div>
                 </div>
-                <p className="text-[9px] text-slate-400 mt-1 font-bold">{(item.value / totalExpenses * 100).toFixed(1)}% of total OpEx</p>
+                <p className="text-[9px] text-slate-400 mt-1 font-bold">{t('pct_of_total_opex', { percent: (item.value / totalExpenses * 100).toFixed(1) })}</p>
               </div>
             ))}
             
             <div className="pt-4 border-t border-slate-100 mt-auto">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-bold text-slate-900">Total Expenses</span>
+                <span className="text-sm font-bold text-slate-900">{t('total_expenses')}</span>
                 <span className="text-sm font-bold text-slate-900">₱{totalExpenses.toLocaleString()}</span>
               </div>
             </div>
@@ -464,12 +426,12 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <div className="bg-orange-500 p-2 rounded-lg">
                   <TrendingUp className="w-4 h-4 text-white" />
                 </div>
-                <h3 className="text-base md:text-lg font-bold truncate">Efficiency: {currentContextName}</h3>
+                <h3 className="text-base md:text-lg font-bold truncate">{t('efficiency')}: {currentContextName}</h3>
               </div>
               
               <div className="space-y-6">
                  <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                    <p className="text-[10px] text-white/50 font-bold uppercase mb-1">Growth Forecast</p>
+                    <p className="text-[10px] text-white/50 font-bold uppercase mb-1">{t('growth_forecast')}</p>
                     <div className="flex items-center justify-between">
                       <span className="text-2xl font-bold">+18.4%</span>
                       <ArrowUpRight className="w-5 h-5 text-green-400" />
@@ -478,8 +440,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                  
                  <div>
                     <div className="flex justify-between text-[10px] mb-2 uppercase font-bold text-white/50">
-                      <span>Network Score</span>
-                      <span className="text-orange-400">Optimal</span>
+                      <span>{t('network_score')}</span>
+                      <span className="text-orange-400">{t('optimal')}</span>
                     </div>
                     <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
                       <div className="bg-gradient-to-r from-orange-500 to-red-500 h-full w-[88%] rounded-full shadow-[0_0_12px_rgba(249,115,22,0.4)]"></div>
@@ -493,7 +455,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                  <div className="flex -space-x-2">
                     {[1,2,3].map(i => <img key={i} src={`https://picsum.photos/24/24?random=${i}`} className="w-6 h-6 rounded-full border border-slate-900" />)}
                  </div>
-                 <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest truncate">Live Activity Feed</span>
+                 <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest truncate">{t('live_activity_feed')}</span>
               </div>
            </div>
         </div>

@@ -1,5 +1,5 @@
-
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   Search, 
   Plus, 
@@ -22,6 +22,7 @@ interface InventoryProps {
 }
 
 const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
+  const { t } = useTranslation('common');
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   
@@ -33,33 +34,33 @@ const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
   });
 
   const getStockStatus = (stock: number) => {
-    if (stock === 0) return { label: 'Out of Stock', color: 'bg-red-100 text-red-700', icon: <AlertTriangle className="w-3 h-3 mr-1" /> };
-    if (stock < 20) return { label: 'Low Stock', color: 'bg-orange-100 text-orange-700', icon: <AlertTriangle className="w-3 h-3 mr-1" /> };
-    return { label: 'In Stock', color: 'bg-green-100 text-green-700', icon: null };
+    if (stock === 0) return { labelKey: 'out_of_stock' as const, color: 'bg-red-100 text-red-700', icon: <AlertTriangle className="w-3 h-3 mr-1" /> };
+    if (stock < 20) return { labelKey: 'low_stock' as const, color: 'bg-orange-100 text-orange-700', icon: <AlertTriangle className="w-3 h-3 mr-1" /> };
+    return { labelKey: 'in_stock' as const, color: 'bg-green-100 text-green-700', icon: null };
   };
 
   const currentBranchName = selectedBranchId === 'all' 
-    ? 'All Branches' 
-    : MOCK_BRANCHES.find(b => b.id === selectedBranchId)?.name;
+    ? t('all_branches') 
+    : MOCK_BRANCHES.find(b => b.id === selectedBranchId)?.name ?? '';
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Inventory Management</h1>
-          <p className="text-slate-500">Tracking ingredients and menu stock for <span className="text-orange-600 font-semibold">{currentBranchName}</span>.</p>
+          <h1 className="text-3xl font-bold text-slate-900">{t('inventory_management')}</h1>
+          <p className="text-slate-500">{t('inventory_subtitle', { branch: currentBranchName })}</p>
         </div>
         <div className="flex items-center space-x-3">
           <button className="hidden sm:flex bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold items-center space-x-2 hover:bg-slate-50 transition-colors shadow-sm">
             <RefreshCw className="w-4 h-4" />
-            <span>Sync Stock</span>
+            <span>{t('sync_stock')}</span>
           </button>
           <button 
             onClick={() => setIsAddModalOpen(true)}
             className="w-full sm:w-auto bg-orange-500 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-md hover:bg-orange-600 transition-colors"
           >
             <Plus className="w-5 h-5" />
-            <span>Add Item</span>
+            <span>{t('add_item')}</span>
           </button>
         </div>
       </div>
@@ -69,7 +70,7 @@ const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input 
             type="text"
-            placeholder="Search items, categories..."
+            placeholder={t('search_inventory_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all text-sm"
@@ -78,11 +79,11 @@ const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
         <div className="flex items-center space-x-2 w-full md:w-auto">
           <button className="flex-1 md:flex-none flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-all">
             <Filter className="w-4 h-4" />
-            <span>Filter</span>
+            <span>{t('filter')}</span>
           </button>
           <button className="flex-1 md:flex-none flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-all">
             <ArrowUpDown className="w-4 h-4" />
-            <span>Sort</span>
+            <span>{t('sort')}</span>
           </button>
         </div>
       </div>
@@ -92,15 +93,15 @@ const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Item Details</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Price</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Stock Level</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('item_details')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('category')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('price')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('stock_level')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('status')}</th>
                 {selectedBranchId === 'all' && (
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Branch</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('branch')}</th>
                 )}
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -133,8 +134,8 @@ const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
                       <td className="px-6 py-4">
                         <div className="flex flex-col space-y-1.5 w-32">
                           <div className="flex justify-between text-[10px] font-bold">
-                            <span className={item.stock < 20 ? 'text-orange-600' : 'text-slate-500'}>{item.stock} units</span>
-                            <span className="text-slate-400">100 max</span>
+                            <span className={item.stock < 20 ? 'text-orange-600' : 'text-slate-500'}>{item.stock} {t('units')}</span>
+                            <span className="text-slate-400">100 {t('max')}</span>
                           </div>
                           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                             <div 
@@ -150,7 +151,7 @@ const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight ${status.color}`}>
                           {status.icon}
-                          {status.label}
+                          {t(status.labelKey)}
                         </span>
                       </td>
                       {selectedBranchId === 'all' && (
@@ -163,10 +164,10 @@ const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
                       )}
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit Item">
+                          <button className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title={t('edit_item')}>
                             <Edit3 className="w-4 h-4" />
                           </button>
-                          <button className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete Item">
+                          <button className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title={t('delete_item')}>
                             <Trash2 className="w-4 h-4" />
                           </button>
                           <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
@@ -182,8 +183,8 @@ const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
                   <td colSpan={selectedBranchId === 'all' ? 7 : 6} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center text-slate-400">
                       <Package className="w-12 h-12 mb-4 opacity-20" />
-                      <p className="text-lg font-medium">No inventory items found</p>
-                      <p className="text-sm">Try adjusting your search or switch branch context.</p>
+                      <p className="text-lg font-medium">{t('no_inventory_found')}</p>
+                      <p className="text-sm">{t('try_adjust_search')}</p>
                     </div>
                   </td>
                 </tr>
@@ -207,8 +208,8 @@ const Inventory: React.FC<InventoryProps> = ({ selectedBranchId }) => {
                   <Package className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Add New Item</h3>
-                  <p className="text-xs text-slate-500 font-medium">Add to {currentBranchName}</p>
+                  <h3 className="text-lg font-bold text-slate-900">{t('add_new_item')}</h3>
+                  <p className="text-xs text-slate-500 font-medium">{t('add_to_branch', { branch: currentBranchName })}</p>
                 </div>
               </div>
               <button 

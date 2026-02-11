@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   Search, 
   UserPlus, 
@@ -42,6 +43,7 @@ interface StaffPageProps {
 }
 
 const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
+  const { t } = useTranslation('common');
   const [searchTerm, setSearchTerm] = useState('');
   const [staff, setStaff] = useState<Staff[]>([]);
   const [branches, setBranches] = useState<BranchOption[]>([]);
@@ -138,19 +140,19 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
         return { 
           bg: 'bg-green-100 text-green-700 border-green-200', 
           icon: <CheckCircle className="w-3 h-3 mr-1" />,
-          label: 'Active'
+          labelKey: 'active' as const
         };
       case 'On Break':
         return { 
           bg: 'bg-orange-100 text-orange-700 border-orange-200', 
           icon: <Clock className="w-3 h-3 mr-1" />,
-          label: 'On Break'
+          labelKey: 'on_break' as const
         };
       case 'Off Duty':
         return { 
           bg: 'bg-slate-100 text-slate-500 border-slate-200', 
           icon: <Moon className="w-3 h-3 mr-1" />,
-          label: 'Off Duty'
+          labelKey: 'off_duty' as const
         };
     }
   };
@@ -165,8 +167,8 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
   };
 
   const currentBranchName = selectedBranchId === 'all' 
-    ? 'All Branches' 
-    : branches.find(b => b.value === selectedBranchId)?.label || 'Branch';
+    ? t('all_branches') 
+    : branches.find(b => b.value === selectedBranchId)?.label || t('branch');
 
   // Form handlers
   const openAddEmployee = () => {
@@ -381,20 +383,20 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Staff Members</h1>
-          <p className="text-slate-500">Managing workforce and performance for <span className="text-orange-600 font-semibold">{currentBranchName}</span>.</p>
+          <h1 className="text-3xl font-bold text-slate-900">{t('staff_members')}</h1>
+          <p className="text-slate-500">{t('staff_subtitle', { branch: currentBranchName })}</p>
         </div>
         <div className="flex items-center space-x-3">
           <button className="bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold flex items-center space-x-2 hover:bg-slate-50 transition-colors shadow-sm">
             <Calendar className="w-4 h-4" />
-            <span>View Schedule</span>
+            <span>{t('view_schedule')}</span>
           </button>
           <button 
             onClick={openAddEmployee}
             className="bg-orange-500 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center space-x-2 shadow-md hover:bg-orange-600 transition-colors"
           >
             <UserPlus className="w-5 h-5" />
-            <span>Add Staff</span>
+            <span>{t('add_staff')}</span>
           </button>
         </div>
       </div>
@@ -404,7 +406,7 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input 
             type="text"
-            placeholder="Search by name, role, or ID..."
+            placeholder={t('search_staff_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all text-sm"
@@ -412,8 +414,8 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
         </div>
         <div className="flex items-center space-x-2 w-full md:w-auto">
           <div className="bg-slate-50 p-1 rounded-xl flex">
-            <button className="px-4 py-1.5 text-xs font-bold bg-white text-slate-900 shadow-sm rounded-lg">All Staff</button>
-            <button className="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors">By Rating</button>
+            <button className="px-4 py-1.5 text-xs font-bold bg-white text-slate-900 shadow-sm rounded-lg">{t('all_staff')}</button>
+            <button className="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors">{t('by_rating')}</button>
           </div>
           <button className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-100 transition-all">
             <Filter className="w-4 h-4" />
@@ -426,15 +428,15 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Role & Dept</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Performance</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Joined Date</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('employee')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('role_dept')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('status')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('performance')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('joined_date')}</th>
                 {selectedBranchId === 'all' && (
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Branch</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('branch')}</th>
                 )}
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -443,7 +445,7 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
                   <td colSpan={selectedBranchId === 'all' ? 7 : 6} className="px-6 py-12 text-center">
                     <div className="flex items-center justify-center">
                       <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
-                      <span className="ml-2 text-sm text-slate-500">Loading staff...</span>
+                      <span className="ml-2 text-sm text-slate-500">{t('loading_staff')}</span>
                     </div>
                   </td>
                 </tr>
@@ -451,7 +453,7 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
                 <tr>
                   <td colSpan={selectedBranchId === 'all' ? 7 : 6} className="px-6 py-12 text-center">
                     <div className="text-red-500 text-sm">
-                      <p className="font-medium">Error loading staff</p>
+                      <p className="font-medium">{t('error_loading_staff')}</p>
                       <p className="text-xs mt-1">{error}</p>
                     </div>
                   </td>
@@ -496,7 +498,7 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border ${statusInfo.bg}`}>
                           {statusInfo.icon}
-                          {statusInfo.label}
+                          {t(statusInfo.labelKey)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -524,7 +526,7 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
                           <button 
                             onClick={() => openEditEmployee(staffMember)}
                             className="p-2 text-slate-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-all" 
-                            title="Edit Profile"
+                            title={t('edit_profile')}
                           >
                             <Edit className="w-4 h-4" />
                           </button>
@@ -533,11 +535,11 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
                               setDeleteTarget({ id: staffMember.id, name: staffMember.name });
                               setSwal({
                                 type: 'question',
-                                title: 'Delete Employee?',
-                                text: `Are you sure you want to delete "${staffMember.name}"? This action cannot be undone.`,
+                                title: t('delete_employee_confirm_title'),
+                                text: t('delete_employee_confirm_text', { name: staffMember.name }),
                                 showCancel: true,
-                                confirmText: 'Yes, Delete',
-                                cancelText: 'Cancel',
+                                confirmText: t('yes_delete'),
+                                cancelText: t('cancel'),
                                 onConfirm: confirmDelete,
                                 onCancel: () => {
                                   setSwal(null);
@@ -546,7 +548,7 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
                               });
                             }}
                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" 
-                            title="Delete Employee"
+                            title={t('delete_employee')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -562,13 +564,13 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
                       <div className="bg-slate-100 p-4 rounded-full mb-4">
                         <Briefcase className="w-12 h-12 opacity-20" />
                       </div>
-                      <p className="text-lg font-medium text-slate-600">No staff members found</p>
-                      <p className="text-sm">Try widening your search or check another branch.</p>
+                      <p className="text-lg font-medium text-slate-600">{t('no_staff_found')}</p>
+                      <p className="text-sm">{t('try_widening_search')}</p>
                       <button 
                         onClick={() => setSearchTerm('')}
                         className="mt-4 text-orange-500 font-bold hover:underline"
                       >
-                        Clear filters
+                        {t('clear_filters')}
                       </button>
                     </div>
                   </td>
@@ -581,11 +583,11 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <p className="text-xs font-medium text-slate-500">
-              Showing <span className="text-slate-900 font-bold">{filteredStaff.length}</span> staff members
+              {t('showing_staff_count', { count: filteredStaff.length })}
             </p>
             <div className="h-4 w-px bg-slate-200"></div>
             <p className="text-xs text-slate-500 font-medium">
-              <span className="text-green-600 font-bold">{filteredStaff.filter(s => s.status === 'Active').length}</span> Online
+              {t('online_count', { count: filteredStaff.filter(s => s.status === 'Active').length })}
             </p>
           </div>
           <div className="flex items-center space-x-2">

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, Plus, MapPin, Store, ExternalLink, Phone, X, Edit3, Trash2 } from 'lucide-react';
 import { BranchRecord } from '../types';
 import { getBranches, createBranch, updateBranch, deleteBranch } from '../services/branchService';
@@ -9,6 +10,7 @@ interface BranchesProps {
 }
 
 const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange }) => {
+  const { t } = useTranslation('common');
   const [searchTerm, setSearchTerm] = useState('');
   const [branches, setBranches] = useState<BranchRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,15 +133,15 @@ const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange })
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Branches</h1>
-          <p className="text-slate-500">Super Admin control for all restaurant locations.</p>
+          <h1 className="text-3xl font-bold text-slate-900">{t('branches')}</h1>
+          <p className="text-slate-500">{t('branches_subtitle')}</p>
         </div>
         <button
           onClick={handleOpenAdd}
           className="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-md hover:bg-orange-600 transition-colors"
         >
           <Plus className="w-5 h-5" />
-          <span>Add New Branch</span>
+          <span>{t('add_new_branch')}</span>
         </button>
       </div>
 
@@ -147,7 +149,7 @@ const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange })
         <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
         <input 
           type="text"
-          placeholder="Search for branch or location..."
+          placeholder={t('search_branch_placeholder')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent shadow-sm transition-all"
@@ -163,7 +165,7 @@ const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange })
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
         {loading ? (
           <div className="col-span-full bg-white rounded-2xl border border-slate-100 shadow-sm p-6 text-slate-400 text-sm">
-            Loading branches...
+            {t('loading_branches')}
           </div>
         ) : filteredBranches.length > 0 ? (
           filteredBranches.map((branch) => (
@@ -176,20 +178,20 @@ const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange })
                   className="bg-white/90 p-1.5 rounded-lg hover:bg-orange-500 hover:text-white transition-all shadow-sm flex items-center space-x-1"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  <span className="text-[10px] font-bold uppercase">Switch To</span>
+                  <span className="text-[10px] font-bold uppercase">{t('switch_to')}</span>
                 </button>
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => handleOpenEdit(branch)}
                     className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                    title="Edit Branch"
+                    title={t('edit_branch')}
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(branch)}
                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                    title="Delete Branch"
+                    title={t('delete_branch')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -210,26 +212,26 @@ const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange })
                   <h3 className="text-xl font-bold text-slate-900 group-hover:text-orange-600 transition-colors">{branch.name}</h3>
                   <div className="flex items-center text-slate-500 text-sm mt-1">
                     <MapPin className="w-4 h-4 mr-1" />
-                    {branch.address || 'No address on file'}
+                    {branch.address || t('no_address')}
                   </div>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                   branch.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                 }`}>
-                  {branch.active ? 'Active' : 'Inactive'}
+                  {branch.active ? t('active') : t('inactive')}
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-4 my-6">
                 <div className="bg-slate-50 p-3 rounded-xl">
-                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Branch Code</p>
+                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">{t('branch_code')}</p>
                   <div className="flex items-center text-slate-800">
                     <Store className="w-4 h-4 mr-2 text-slate-400" />
                     <span className="font-medium text-sm">{branch.code || '—'}</span>
                   </div>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl">
-                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Contact</p>
+                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">{t('contact')}</p>
                   <div className="flex items-center text-slate-800">
                     <Phone className="w-4 h-4 mr-2 text-orange-500" />
                     <span className="font-bold text-sm">{branch.phone || 'N/A'}</span>
@@ -250,7 +252,7 @@ const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange })
                   onClick={() => onSelectBranch(branch.id)}
                   className="text-sm font-semibold text-orange-600 hover:text-orange-700 flex items-center"
                 >
-                  Manage Branch Context →
+                  {t('manage_branch_context')} →
                 </button>
               </div>
             </div>
@@ -258,7 +260,7 @@ const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange })
           ))
         ) : (
           <div className="col-span-full bg-white rounded-2xl border border-slate-100 shadow-sm p-6 text-slate-400 text-sm">
-            No branches found.
+            {t('no_branches_found')}
           </div>
         )}
       </div>
@@ -285,10 +287,10 @@ const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange })
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-slate-900">
-                      {isEditModalOpen ? 'Edit Branch' : 'Add New Branch'}
+                      {isEditModalOpen ? t('edit_branch') : t('add_new_branch')}
                     </h3>
                     <p className="text-xs text-slate-500 font-medium">
-                      {isEditModalOpen ? 'Update branch details' : 'Create a new location'}
+                      {isEditModalOpen ? t('update_branch_details') : t('create_new_location')}
                     </p>
                   </div>
                 </div>

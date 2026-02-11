@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Users, Shield, Key, Search, UserPlus,
   MoreVertical, Check, ShieldCheck,
@@ -112,6 +113,7 @@ const getRoleColor = (roleId: string, roleName: string): {
 };
 
 const UserManagement: React.FC = () => {
+  const { t } = useTranslation('common');
   const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
   const [searchTerm, setSearchTerm] = useState('');
   const [users, setUsers] = useState<SystemUser[]>([]);
@@ -254,7 +256,7 @@ const UserManagement: React.FC = () => {
 
   const openAddUser = () => {
     if (roles.length === 0) {
-      setError('Please wait for roles to load before creating a user.');
+      setError(t('please_wait_roles'));
       return;
     }
     setEditingUser(null);
@@ -291,33 +293,28 @@ const UserManagement: React.FC = () => {
   const submitUser = async () => {
     setUserFormError(null);
     if (!userForm.firstname?.trim() || !userForm.lastname?.trim() || !userForm.username?.trim()) {
-      setUserFormError('First name, last name, and username are required.');
+      setUserFormError(t('first_last_username_required'));
       return;
     }
     if (userModalMode === 'add') {
       if (!userForm.password || userForm.password.length < 4) {
-        setUserFormError('Password must be at least 4 characters.');
+        setUserFormError(t('password_min'));
         return;
       }
       if (userForm.password !== userForm.passwordConfirm) {
-        setUserFormError('Passwords do not match.');
+        setUserFormError(t('passwords_no_match'));
         return;
       }
     }
     
-    // Show SweetAlert confirmation before submitting
-    const actionTitle = userModalMode === 'add' ? 'Create User?' : 'Update User?';
-    const actionText = userModalMode === 'add'
-      ? `Are you sure you want to create user "${userForm.firstname} ${userForm.lastname}"?`
-      : `Are you sure you want to update user "${userForm.firstname} ${userForm.lastname}"?`;
-    
+    const userName = `${userForm.firstname} ${userForm.lastname}`.trim();
     setSwal({
       type: 'question',
-      title: actionTitle,
-      text: actionText,
+      title: userModalMode === 'add' ? t('create_user_confirm') : t('update_user_confirm'),
+      text: userModalMode === 'add' ? t('create_user_confirm_text', { name: userName }) : t('update_user_confirm_text', { name: userName }),
       showCancel: true,
-      confirmText: 'Yes, Continue',
-      cancelText: 'Cancel',
+      confirmText: t('yes_continue'),
+      cancelText: t('cancel'),
       onConfirm: async () => {
         setSwal(null);
         setUserSubmitting(true);
@@ -331,8 +328,8 @@ const UserManagement: React.FC = () => {
             if (selectedRoleId === '1' && !isAdmin) {
               setSwal({
                 type: 'error',
-                title: 'Permission Denied',
-                text: 'Only administrators can create Administrator accounts.',
+                title: t('permission_denied'),
+                text: t('admin_only_create'),
                 onConfirm: () => setSwal(null),
               });
               setUserSubmitting(false);
@@ -354,19 +351,18 @@ const UserManagement: React.FC = () => {
             closeUserModal();
             setSwal({
               type: 'success',
-              title: 'Success!',
-              text: `User "${userForm.firstname} ${userForm.lastname}" created successfully!`,
+              title: t('success'),
+              text: t('user_created_text', { name: userName }),
               onConfirm: () => setSwal(null),
             });
           } else if (editingUser) {
             const selectedRoleId = userForm.roleId || editingUser.roleId || '';
             
-            // Only admin can change users to Administrator role
             if (selectedRoleId === '1' && !isAdmin) {
               setSwal({
                 type: 'error',
-                title: 'Permission Denied',
-                text: 'Only administrators can assign Administrator role.',
+                title: t('permission_denied'),
+                text: t('admin_only_assign'),
                 onConfirm: () => setSwal(null),
               });
               setUserSubmitting(false);
@@ -385,16 +381,16 @@ const UserManagement: React.FC = () => {
             closeUserModal();
             setSwal({
               type: 'success',
-              title: 'Success!',
-              text: `User "${userForm.firstname} ${userForm.lastname}" updated successfully!`,
+              title: t('success'),
+              text: t('user_updated_text', { name: userName }),
               onConfirm: () => setSwal(null),
             });
           }
         } catch (e) {
           setSwal({
             type: 'error',
-            title: 'Error!',
-            text: e instanceof Error ? e.message : 'Request failed',
+            title: t('error'),
+            text: e instanceof Error ? e.message : t('request_failed'),
             onConfirm: () => setSwal(null),
           });
         } finally {
@@ -432,23 +428,18 @@ const UserManagement: React.FC = () => {
   const submitRole = async () => {
     setRoleFormError(null);
     if (!roleForm.name?.trim()) {
-      setRoleFormError('Role name is required.');
+      setRoleFormError(t('role_name_required'));
       return;
     }
     
-    // Show SweetAlert confirmation before submitting
-    const actionTitle = roleModalMode === 'add' ? 'Create Role?' : 'Update Role?';
-    const actionText = roleModalMode === 'add'
-      ? `Are you sure you want to create role "${roleForm.name.trim()}"?`
-      : `Are you sure you want to update role "${roleForm.name.trim()}"?`;
-    
+    const roleName = roleForm.name.trim();
     setSwal({
       type: 'question',
-      title: actionTitle,
-      text: actionText,
+      title: roleModalMode === 'add' ? t('create_role_confirm') : t('update_role_confirm'),
+      text: roleModalMode === 'add' ? t('create_role_confirm_text', { name: roleName }) : t('update_role_confirm_text', { name: roleName }),
       showCancel: true,
-      confirmText: 'Yes, Continue',
-      cancelText: 'Cancel',
+      confirmText: t('yes_continue'),
+      cancelText: t('cancel'),
       onConfirm: async () => {
         setSwal(null);
         setRoleSubmitting(true);
@@ -465,8 +456,8 @@ const UserManagement: React.FC = () => {
             closeRoleModal();
             setSwal({
               type: 'success',
-              title: 'Success!',
-              text: `Role "${roleForm.name.trim()}" created successfully!`,
+              title: t('success'),
+              text: t('role_created', { name: roleName }),
               onConfirm: () => setSwal(null),
             });
           } else if (editingRole) {
@@ -479,16 +470,16 @@ const UserManagement: React.FC = () => {
             closeRoleModal();
             setSwal({
               type: 'success',
-              title: 'Success!',
-              text: `Role "${roleForm.name.trim()}" updated successfully!`,
+              title: t('success'),
+              text: t('role_updated', { name: roleName }),
               onConfirm: () => setSwal(null),
             });
           }
         } catch (e) {
           setSwal({
             type: 'error',
-            title: 'Error!',
-            text: e instanceof Error ? e.message : 'Request failed',
+            title: t('error'),
+            text: e instanceof Error ? e.message : t('request_failed'),
             onConfirm: () => setSwal(null),
           });
         } finally {
@@ -509,8 +500,8 @@ const UserManagement: React.FC = () => {
       if (userToDelete?.roleId === '1' && !isAdmin) {
         setSwal({
           type: 'error',
-          title: 'Permission Denied',
-          text: 'Only administrators can delete Administrator accounts.',
+          title: t('permission_denied'),
+          text: t('admin_only_delete_user'),
           onConfirm: () => {
             setSwal(null);
             setDeleteTarget(null);
@@ -520,12 +511,11 @@ const UserManagement: React.FC = () => {
       }
     }
     
-    // Only admin can delete roles
     if (deleteTarget.type === 'role' && !isAdmin) {
       setSwal({
         type: 'error',
-        title: 'Permission Denied',
-        text: 'Only administrators can delete roles.',
+        title: t('permission_denied'),
+        text: t('admin_only_delete_role'),
         onConfirm: () => {
           setSwal(null);
           setDeleteTarget(null);
@@ -544,8 +534,8 @@ const UserManagement: React.FC = () => {
         setDeleteTarget(null);
         setSwal({
           type: 'success',
-          title: 'Deleted!',
-          text: `User "${deleteTarget.name}" deleted successfully!`,
+          title: t('deleted'),
+          text: t('user_deleted_text', { name: deleteTarget.name }),
           onConfirm: () => setSwal(null),
         });
       } else {
@@ -554,16 +544,16 @@ const UserManagement: React.FC = () => {
         setDeleteTarget(null);
         setSwal({
           type: 'success',
-          title: 'Deleted!',
-          text: `Role "${deleteTarget.name}" deleted successfully!`,
+          title: t('deleted'),
+          text: t('role_deleted', { name: deleteTarget.name }),
           onConfirm: () => setSwal(null),
         });
       }
     } catch (e) {
       setSwal({
         type: 'error',
-        title: 'Error!',
-        text: e instanceof Error ? e.message : 'Delete failed',
+        title: t('error'),
+        text: e instanceof Error ? e.message : t('delete_failed'),
         onConfirm: () => setSwal(null),
       });
     } finally {
@@ -575,21 +565,21 @@ const UserManagement: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">User & Access</h1>
-          <p className="text-slate-500">Manage system administrators, managers, and their permissions.</p>
+          <h1 className="text-3xl font-bold text-slate-900">{t('user_access')}</h1>
+          <p className="text-slate-500">{t('user_access_subtitle')}</p>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-xl">
           <button
             onClick={() => setActiveTab('users')}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'users' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            Users List
+            {t('users_list')}
           </button>
           <button
             onClick={() => setActiveTab('roles')}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'roles' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            Roles & Permissions
+            {t('roles_permissions')}
           </button>
         </div>
       </div>
@@ -599,7 +589,7 @@ const UserManagement: React.FC = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
-            placeholder={activeTab === 'users' ? 'Search users...' : 'Search roles...'}
+            placeholder={activeTab === 'users' ? t('search_users') : t('search_roles')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all text-sm"
@@ -611,7 +601,7 @@ const UserManagement: React.FC = () => {
             className="bg-orange-500 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center space-x-2 shadow-md hover:bg-orange-600 transition-colors"
           >
             {activeTab === 'users' ? <UserPlus className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
-            <span>{activeTab === 'users' ? 'Invite User' : 'Create Role'}</span>
+            <span>{activeTab === 'users' ? t('invite_user') : t('create_role')}</span>
           </button>
         </PermissionGate>
       </div>
@@ -623,10 +613,10 @@ const UserManagement: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">User</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Role</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Last Activity</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('user')}</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('role')}</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('last_activity')}</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -635,7 +625,7 @@ const UserManagement: React.FC = () => {
                     <td colSpan={4} className="px-6 py-12 text-center">
                       <div className="flex items-center justify-center">
                         <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
-                        <span className="ml-2 text-sm text-slate-500">Loading users...</span>
+                        <span className="ml-2 text-sm text-slate-500">{t('loading_users')}</span>
                       </div>
                     </td>
                   </tr>
@@ -643,7 +633,7 @@ const UserManagement: React.FC = () => {
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center">
                       <div className="text-red-500 text-sm">
-                        <p className="font-medium">Error loading users</p>
+                        <p className="font-medium">{t('error_loading_users')}</p>
                         <p className="text-xs mt-1">{error}</p>
                       </div>
                     </td>
@@ -693,7 +683,7 @@ const UserManagement: React.FC = () => {
                             <button
                               onClick={() => openEditUser(user)}
                               className="p-2 text-slate-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-all"
-                              title="Edit User"
+                              title={t('edit_user')}
                             >
                               <Edit className="w-4 h-4" />
                             </button>
@@ -703,11 +693,11 @@ const UserManagement: React.FC = () => {
                                   setDeleteTarget({ type: 'user', id: user.id, name: user.name });
                                   setSwal({
                                     type: 'question',
-                                    title: 'Delete User?',
-                                    text: `Are you sure you want to delete "${user.name}"? This action cannot be undone.`,
+                                    title: t('delete_user_confirm_title'),
+                                    text: t('delete_user_confirm_text', { name: user.name }),
                                     showCancel: true,
-                                    confirmText: 'Yes, Delete',
-                                    cancelText: 'Cancel',
+                                    confirmText: t('yes_delete'),
+                                    cancelText: t('cancel'),
                                     onConfirm: confirmDelete,
                                     onCancel: () => {
                                       setSwal(null);
@@ -716,7 +706,7 @@ const UserManagement: React.FC = () => {
                                   });
                                 }}
                                 className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="Delete User"
+                                title={t('delete_user')}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -733,13 +723,13 @@ const UserManagement: React.FC = () => {
                         <div className="bg-slate-100 p-4 rounded-full mb-4">
                           <Users className="w-12 h-12 opacity-20" />
                         </div>
-                        <p className="text-lg font-medium text-slate-600">No users found</p>
-                        <p className="text-sm">Try widening your search or add a new user.</p>
+                        <p className="text-lg font-medium text-slate-600">{t('no_users_found')}</p>
+                        <p className="text-sm">{t('try_widening_search_users')}</p>
                         <button
                           onClick={() => setSearchTerm('')}
                           className="mt-4 text-orange-500 font-bold hover:underline"
                         >
-                          Clear filters
+                          {t('clear_filters')}
                         </button>
                       </div>
                     </td>
@@ -752,7 +742,7 @@ const UserManagement: React.FC = () => {
           <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <p className="text-xs font-medium text-slate-500">
-                Showing <span className="text-slate-900 font-bold">{filteredUsers.length}</span> users
+                {t('showing_users_count', { count: filteredUsers.length })}
               </p>
             </div>
             <div className="flex items-center space-x-2">
@@ -784,7 +774,7 @@ const UserManagement: React.FC = () => {
                 
                 {/* Description */}
                 <p className={`${roleColor.text} opacity-70 text-xs mb-3 leading-snug line-clamp-2`}>
-                  {role.description || 'Manage permissions and access for this role.'}
+                  {role.description || t('role_default_description')}
                 </p>
                 
                 {/* Permissions as Tags */}
@@ -820,7 +810,7 @@ const UserManagement: React.FC = () => {
                     onClick={() => openEditRole(role)}
                     className="flex items-center gap-1 text-slate-700 hover:text-slate-900 font-medium text-xs transition-colors group/explore"
                   >
-                    <span>Edit Role</span>
+                    <span>{t('edit_role')}</span>
                     <ArrowRight className="w-3 h-3 group-hover/explore:translate-x-1 transition-transform" />
                   </button>
                   {/* Only admin can delete roles */}
@@ -828,7 +818,7 @@ const UserManagement: React.FC = () => {
                     <button
                       onClick={() => setDeleteTarget({ type: 'role', id: role.id, name: role.name })}
                       className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                      title="Delete Role"
+                      title={t('delete_role')}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -851,7 +841,7 @@ const UserManagement: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
               <h2 className="text-xl font-bold text-slate-900">
-                {userModalMode === 'add' ? 'Invite User' : 'Edit User'}
+                {userModalMode === 'add' ? t('invite_user') : t('edit_user')}
               </h2>
               <button onClick={closeUserModal} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg">
                 <X className="w-5 h-5" />
@@ -865,21 +855,21 @@ const UserManagement: React.FC = () => {
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">First name</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('first_name')}</label>
                   <input
                     value={userForm.firstname ?? ''}
                     onChange={(e) => setUserForm(f => ({ ...f, firstname: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
-                    placeholder="First name"
+                    placeholder={t('first_name')}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Last name</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('last_name')}</label>
                   <input
                     value={userForm.lastname ?? ''}
                     onChange={(e) => setUserForm(f => ({ ...f, lastname: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
-                    placeholder="Last name"
+                    placeholder={t('last_name')}
                   />
                 </div>
               </div>
@@ -889,12 +879,12 @@ const UserManagement: React.FC = () => {
                   value={userForm.username ?? ''}
                   onChange={(e) => setUserForm(f => ({ ...f, username: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
-                  placeholder="Username"
+                  placeholder={t('username')}
                   readOnly={userModalMode === 'edit'}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email (optional)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('email_optional')}</label>
                 <input
                   type="email"
                   value={userForm.email ?? ''}
@@ -906,7 +896,7 @@ const UserManagement: React.FC = () => {
               {userModalMode === 'add' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('password')}</label>
                     <input
                       type="password"
                       value={userForm.password ?? ''}
@@ -928,7 +918,7 @@ const UserManagement: React.FC = () => {
                 </>
               )}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Role <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('role')} <span className="text-red-500">*</span></label>
                 {roles.length === 0 ? (
                   <div className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-400">
                     Loading roles...
@@ -940,7 +930,7 @@ const UserManagement: React.FC = () => {
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                     required
                   >
-                  <option value="">— Select Role —</option>
+                  <option value="">{t('select_role')}</option>
                   {roles
                     .filter(r => {
                       // Non-admin users cannot select Administrator role (id === '1')
@@ -955,7 +945,7 @@ const UserManagement: React.FC = () => {
               </div>
               {branchOptions.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Branch (optional)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('branch_optional')}</label>
                   <select
                     value={userForm.branch_id ?? ''}
                     onChange={(e) => setUserForm(f => ({ ...f, branch_id: e.target.value || undefined }))}
@@ -979,7 +969,7 @@ const UserManagement: React.FC = () => {
                 className="px-4 py-2 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
               >
                 {userSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {userModalMode === 'add' ? 'Create User' : 'Save'}
+                {userModalMode === 'add' ? t('create_user') : t('save')}
               </button>
             </div>
           </div>
@@ -992,7 +982,7 @@ const UserManagement: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
               <h2 className="text-xl font-bold text-slate-900">
-                {roleModalMode === 'add' ? 'Create Role' : 'Edit Role'}
+                {roleModalMode === 'add' ? t('create_role') : t('edit_role')}
               </h2>
               <button onClick={closeRoleModal} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg">
                 <X className="w-5 h-5" />
@@ -1005,26 +995,26 @@ const UserManagement: React.FC = () => {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Role name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('role_name')}</label>
                 <input
                   value={roleForm.name ?? ''}
                   onChange={(e) => setRoleForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
-                  placeholder="e.g. Branch Manager"
+                  placeholder={t('role_name_placeholder')}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description (optional)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('description_optional')}</label>
                 <textarea
                   value={roleForm.description ?? ''}
                   onChange={(e) => setRoleForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
                   rows={2}
-                  placeholder="Short description"
+                  placeholder={t('short_description')}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Permissions</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">{t('permissions_label')}</label>
                 <div className="space-y-2 max-h-48 overflow-y-auto border border-slate-200 rounded-xl p-3 bg-slate-50">
                   <label className="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer">
                     <input
@@ -1039,7 +1029,7 @@ const UserManagement: React.FC = () => {
                       }}
                       className="w-4 h-4 text-orange-500 border-slate-300 rounded focus:ring-orange-500"
                     />
-                    <span className="text-sm font-semibold text-green-700">Full Access (all permissions)</span>
+                    <span className="text-sm font-semibold text-green-700">{t('full_access')}</span>
                   </label>
                   {!roleForm.permissions?.includes('all') && (
                     <>
@@ -1078,7 +1068,7 @@ const UserManagement: React.FC = () => {
                   )}
                   {roleForm.permissions && roleForm.permissions.length > 0 && !roleForm.permissions.includes('all') && (
                     <div className="pt-2 border-t border-slate-200 mt-2">
-                      <p className="text-xs text-slate-500 mb-1">Selected: {roleForm.permissions.length} permission{roleForm.permissions.length > 1 ? 's' : ''}</p>
+                      <p className="text-xs text-slate-500 mb-1">{t('selected_permissions', { count: roleForm.permissions.length })}</p>
                     </div>
                   )}
                 </div>
@@ -1086,7 +1076,7 @@ const UserManagement: React.FC = () => {
             </div>
             <div className="p-6 border-t border-slate-100 flex justify-end gap-2">
               <button onClick={closeRoleModal} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium">
-                Cancel
+                {t('cancel')}
               </button>
               <button
                 onClick={submitRole}
@@ -1094,7 +1084,7 @@ const UserManagement: React.FC = () => {
                 className="px-4 py-2 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
               >
                 {roleSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {roleModalMode === 'add' ? 'Create Role' : 'Save'}
+                {roleModalMode === 'add' ? t('create_role') : t('save')}
               </button>
             </div>
           </div>
@@ -1150,7 +1140,7 @@ const UserManagement: React.FC = () => {
                     }}
                     className="px-6 py-2.5 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold transition-colors"
                   >
-                    {swal.cancelText || 'Cancel'}
+                    {swal.cancelText ?? t('cancel')}
                   </button>
                 )}
                 <button
@@ -1171,7 +1161,7 @@ const UserManagement: React.FC = () => {
                   } disabled:opacity-50`}
                 >
                   {(userSubmitting || roleSubmitting || deleteSubmitting) && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {swal.confirmText || 'OK'}
+                  {swal.confirmText ?? t('ok')}
                 </button>
               </div>
             </div>
@@ -1190,17 +1180,17 @@ const UserManagement: React.FC = () => {
                 </div>
               </div>
               <h3 className="text-2xl font-bold text-slate-900 text-center mb-2">
-                Are you sure?
+                {t('delete_confirm_title')}
               </h3>
               <p className="text-slate-600 text-center mb-6">
-                Are you sure you want to remove <strong>{deleteTarget.name}</strong>? This action cannot be undone.
+                {t('delete_confirm_remove_text', { name: deleteTarget.name })}
               </p>
               <div className="flex justify-center gap-3">
                 <button
                   onClick={() => setDeleteTarget(null)}
                   className="px-6 py-2.5 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold transition-colors"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   onClick={confirmDelete}
@@ -1208,7 +1198,7 @@ const UserManagement: React.FC = () => {
                   className="px-6 py-2.5 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 disabled:opacity-50 flex items-center gap-2 transition-colors"
                 >
                   {deleteSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Yes, Delete!
+                  {t('yes_delete')}
                 </button>
               </div>
             </div>

@@ -1,21 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Filter, RefreshCw, Search, Utensils, AlertTriangle, AlertCircle, CheckCircle2, X, ChevronRight, Plus, Edit3, Trash2, Loader2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronRight, Plus, Edit3, Trash2, Languages } from 'lucide-react';
+import { MOCK_BRANCHES } from '../constants';
 import { MenuCategory, MenuRecord } from '../types';
-import {
-  getMenuCategories,
-  getMenus,
-  createMenu,
-  updateMenu,
-  deleteMenu,
-} from '../services/menuService';
-import { getBranches } from '../services/branchService';
-import type { BranchRecord } from '../types';
+import { getMenuCategories, getMenus } from '../services/menuService';
+import { translateText, i18nToTranslateTarget } from '../services/translateService';
 
 interface MenuProps {
   selectedBranchId: string;
 }
 
 const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
+  const { t, i18n } = useTranslation('common');
   const [menus, setMenus] = useState<MenuRecord[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,6 +21,9 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
   const [error, setError] = useState<string | null>(null);
+  const [menuTranslations, setMenuTranslations] = useState<Record<string, { name?: string; description?: string; categoryName?: string }>>({});
+  const [translateLoading, setTranslateLoading] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingMenu, setEditingMenu] = useState<MenuRecord | null>(null);
@@ -56,9 +55,9 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     onCancel?: () => void;
   } | null>(null);
 
-  const currentBranchName = selectedBranchId === 'all'
-    ? 'All Branches'
-    : branches.find(b => b.id === selectedBranchId)?.name ?? 'Branch';
+  const currentBranchName = selectedBranchId === 'all' 
+    ? t('all_branches') 
+    : MOCK_BRANCHES.find(b => b.id === selectedBranchId)?.name ?? '';
 
   const refreshData = async () => {
     setLoading(true);
@@ -70,6 +69,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
       ]);
       setMenus(menuData);
       setCategories(categoryData);
+      setMenuTranslations({});
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load menu data');
       setMenus([]);
@@ -83,9 +83,10 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     refreshData();
   }, [selectedBranchId]);
 
+  // Clear translations when language changes so we re-translate to new language
   useEffect(() => {
-    getBranches().then(setBranches).catch(() => setBranches([]));
-  }, []);
+    setMenuTranslations({});
+  }, [i18n.language]);
 
   useEffect(() => {
     if (selectedBranchId !== 'all') {
@@ -138,6 +139,66 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     (currentPageSafe - 1) * itemsPerPage,
     currentPageSafe * itemsPerPage
   );
+
+  const BATCH_SIZE = 50; // Google Translate API allows up to 128 per request; 50 keeps URL safe
+
+  const handleTranslateTable = useCallback(async () => {
+    if (filteredMenus.length === 0) return;
+    setTranslateLoading(true);
+    setTranslateError(null);
+    const target = i18nToTranslateTarget(i18n.language || 'en');
+    try {
+      const names = filteredMenus.map((m) => m.name);
+      const descriptions = filteredMenus.map((m) => m.description || '');
+      const uniqueCategories = [...new Set(filteredMenus.map((m) => m.categoryName).filter(Boolean))];
+
+      const translateBatch = async (texts: string[]) => {
+        const results: Awaited<ReturnType<typeof translateText>> = [];
+        for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+          const chunk = texts.slice(i, i + BATCH_SIZE);
+          const chunkResults = await translateText(chunk, target);
+          results.push(...chunkResults);
+        }
+        return results;
+      };
+
+      const [nameResults, descResults, categoryResults] = await Promise.all([
+        translateBatch(names),
+        translateBatch(descriptions),
+        uniqueCategories.length > 0 ? translateText(uniqueCategories, target) : Promise.resolve([]),
+      ]);
+
+      const categoryMap: Record<string, string> = {};
+      uniqueCategories.forEach((cat, i) => {
+        categoryMap[cat] = categoryResults[i]?.translatedText ?? cat;
+      });
+
+      setMenuTranslations((prev) => {
+        const next = { ...prev };
+        filteredMenus.forEach((menu, i) => {
+          next[menu.id] = {
+            name: nameResults[i]?.translatedText || menu.name,
+            description: menu.description ? (descResults[i]?.translatedText ?? menu.description) : undefined,
+            categoryName: menu.categoryName ? (categoryMap[menu.categoryName] ?? menu.categoryName) : undefined,
+          };
+        });
+        return next;
+      });
+    } catch (err) {
+      setTranslateError(err instanceof Error ? err.message : 'Translation failed');
+    } finally {
+      setTranslateLoading(false);
+    }
+  }, [filteredMenus, i18n.language]);
+
+  // Auto-translate table when menu data is loaded and we're on a translated language (en/ko)
+  useEffect(() => {
+    if (menus.length === 0 || !i18n.language) return;
+    if (Object.keys(menuTranslations).length > 0) return;
+    const lang = i18n.language;
+    if (lang !== 'en' && lang !== 'ko') return;
+    handleTranslateTable();
+  }, [menus, i18n.language, menuTranslations, handleTranslateTable]);
 
   const resolveImageUrl = (imageUrl: string | null) => {
     if (!imageUrl) return null;
@@ -314,9 +375,9 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Menu Management</h1>
+          <h1 className="text-3xl font-bold text-slate-900">{t('menu_management')}</h1>
           <p className="text-slate-500">
-            Live menu list for <span className="text-orange-600 font-semibold">{currentBranchName}</span>.
+            {t('menu_list_subtitle', { branch: currentBranchName })}
           </p>
         </div>
         <div className="flex items-center space-x-3">
@@ -325,24 +386,44 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             className="w-full md:w-auto bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center space-x-2 hover:bg-slate-50 transition-colors shadow-sm"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
+            <span>{t('refresh')}</span>
           </button>
           <button
             onClick={handleOpenAdd}
             className="w-full md:w-auto bg-orange-500 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-md hover:bg-orange-600 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Menu</span>
+            <span>{t('add_menu')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleTranslateTable}
+            disabled={translateLoading || filteredMenus.length === 0}
+            className="w-full md:w-auto bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center space-x-2 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
+            title={t('translate_table')}
+          >
+            <Languages className={`w-4 h-4 ${translateLoading ? 'animate-pulse' : ''}`} />
+            <span>{translateLoading ? t('loading') : t('translate_to', { lang: i18n.language === 'ko' ? t('korean') : t('english') })}</span>
           </button>
         </div>
       </div>
+
+      {translateError && (
+        <div className="flex items-start space-x-3 bg-amber-50 border border-amber-100 text-amber-800 p-4 rounded-2xl">
+          <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+          <div className="text-sm">
+            <p className="font-bold">{translateError}</p>
+            <p className="text-xs text-amber-600">Check VITE_GOOGLE_TRANSLATE_API_KEY in .env.local and that Cloud Translation API is enabled.</p>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col xl:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
         <div className="relative w-full xl:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input 
             type="text"
-            placeholder="Search menu name, category, branch..."
+            placeholder={t('search_menu_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all text-sm"
@@ -356,7 +437,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-all"
             >
-              <option value="all">All Categories</option>
+              <option value="all">{t('all_categories')}</option>
               {categories.map(category => (
                 <option key={category.id} value={category.id}>{category.name}</option>
               ))}
@@ -367,9 +448,9 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             onChange={(e) => setAvailability(e.target.value as 'all' | 'available' | 'unavailable')}
             className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-all"
           >
-            <option value="all">All Availability</option>
-            <option value="available">Available</option>
-            <option value="unavailable">Unavailable</option>
+            <option value="all">{t('all_availability')}</option>
+            <option value="available">{t('available')}</option>
+            <option value="unavailable">{t('unavailable')}</option>
           </select>
         </div>
       </div>
@@ -378,7 +459,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
         <div className="flex items-start space-x-3 bg-red-50 border border-red-100 text-red-700 p-4 rounded-2xl">
           <AlertTriangle className="w-5 h-5 mt-0.5" />
           <div className="text-sm">
-            <p className="font-bold">Unable to load menu data</p>
+            <p className="font-bold">{t('unable_to_load_menu_data')}</p>
             <p className="text-xs text-red-600">{error}</p>
           </div>
         </div>
@@ -389,21 +470,21 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Menu Item</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Price</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Availability</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('menu_item')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('category')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('price')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('availability')}</th>
                 {selectedBranchId === 'all' && (
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Branch</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('branch')}</th>
                 )}
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
                   <td colSpan={selectedBranchId === 'all' ? 6 : 5} className="px-6 py-16 text-center text-slate-400 text-sm">
-                    Loading menu data...
+                    {t('loading_menu_data')}
                   </td>
                 </tr>
               ) : filteredMenus.length > 0 ? (
@@ -421,15 +502,15 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                             )}
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900">{menu.name}</p>
-                            <p className="text-xs text-slate-400 truncate max-w-xs">{menu.description || 'No description provided'}</p>
+                            <p className="font-bold text-slate-900">{menuTranslations[menu.id]?.name ?? menu.name}</p>
+                            <p className="text-xs text-slate-400 truncate max-w-xs">{menuTranslations[menu.id]?.description ?? menu.description ?? t('no_description')}</p>
 
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
-                          {menu.categoryName}
+                          {menuTranslations[menu.id]?.categoryName ?? menu.categoryName}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -440,7 +521,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                           menu.isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                         }`}>
                           {menu.isAvailable ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <X className="w-3 h-3 mr-1" />}
-                          {menu.isAvailable ? 'Available' : 'Unavailable'}
+                          {menu.isAvailable ? t('available') : t('unavailable')}
                         </span>
                       </td>
                       {selectedBranchId === 'all' && (
@@ -496,7 +577,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
           </p>
           <div className="h-4 w-px bg-slate-200"></div>
           <p className="text-xs text-slate-500 font-medium">
-            <span className="text-green-600 font-bold">{filteredMenus.filter(m => m.isAvailable).length}</span> Available
+            <span className="text-green-600 font-bold">{filteredMenus.filter(m => m.isAvailable).length}</span> {t('available')}
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -650,8 +731,8 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                     onChange={(e) => setFormState((prev) => ({ ...prev, isAvailable: e.target.value === 'yes' }))}
                     className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all appearance-none"
                   >
-                    <option value="yes">Available</option>
-                    <option value="no">Unavailable</option>
+                    <option value="yes">{t('available')}</option>
+                    <option value="no">{t('unavailable')}</option>
                   </select>
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">

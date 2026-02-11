@@ -17,7 +17,7 @@ import {
   X,
   Receipt
 } from 'lucide-react';
-import { TRANSLATIONS } from '../constants';
+import { useTranslation } from 'react-i18next';
 import { BranchOption, AuthUser } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
 
@@ -28,7 +28,6 @@ interface SidebarProps {
   onBranchChange: (id: string) => void;
   branchOptions: BranchOption[];
   branchOptionsLoading?: boolean;
-  lang: 'en' | 'ph';
   user: AuthUser | null;
   isOpen?: boolean;
   onClose?: () => void;
@@ -41,14 +40,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   onBranchChange,
   branchOptions,
   branchOptionsLoading,
-  lang,
   user,
   isOpen,
   onClose
 }) => {
+  const { t } = useTranslation('common');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const t = TRANSLATIONS[lang];
   const {
     canViewDashboard,
     canManageBranches,
@@ -63,19 +61,19 @@ const Sidebar: React.FC<SidebarProps> = ({
   const allMenuItems = [
     { 
       id: 'dashboard', 
-      label: t.dashboard, 
+      label: t('dashboard'), 
       icon: LayoutDashboard,
       canAccess: canViewDashboard
     },
     { 
       id: 'branches', 
-      label: t.branches, 
+      label: t('branches'), 
       icon: Store,
       canAccess: canManageBranches
     },
     { 
       id: 'menu', 
-      label: t.menu, 
+      label: t('menu'), 
       icon: Utensils,
       canAccess: canManageMenu
     },
@@ -87,25 +85,25 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
     { 
       id: 'inventory', 
-      label: t.inventory, 
+      label: t('inventory'), 
       icon: ClipboardList,
       canAccess: canManageInventory
     },
     { 
       id: 'staff', 
-      label: t.staff, 
+      label: t('staff'), 
       icon: Users,
       canAccess: canManageStaff
     },
     { 
       id: 'user_management', 
-      label: t.user_mgmt, 
+      label: t('user_mgmt'), 
       icon: ShieldCheck,
       canAccess: canManageUsers
     },
     { 
       id: 'settings', 
-      label: t.settings, 
+      label: t('settings'), 
       icon: Settings,
       canAccess: true // Settings accessible to all authenticated users
     },
@@ -115,7 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const menuItems = allMenuItems.filter(item => item.canAccess);
 
   const currentOption = branchOptions.find((opt) => opt.value === selectedBranchId);
-  const currentLabel = selectedBranchId === 'all' ? 'Global View' : (currentOption?.label || 'Branch');
+  const currentLabel = selectedBranchId === 'all' ? t('global_view') : (currentOption?.label || t('branch'));
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -146,7 +144,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="px-4 py-6 relative" ref={dropdownRef}>
         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-4 mb-2 block">
-          Context
+          {t('context')}
         </label>
         
         <button
@@ -171,7 +169,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {isDropdownOpen && (
           <div className="absolute top-full left-4 right-4 mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
             {branchOptionsLoading ? (
-              <div className="px-4 py-3 text-xs font-bold text-slate-500">Loading branches...</div>
+              <div className="px-4 py-3 text-xs font-bold text-slate-500">{t('loading_branches')}</div>
             ) : branchOptions.length > 0 ? (
               branchOptions.map((option, index) => (
                 <button
@@ -188,7 +186,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               ))
             ) : (
-              <div className="px-4 py-3 text-xs font-bold text-slate-500">No branches available</div>
+              <div className="px-4 py-3 text-xs font-bold text-slate-500">{t('no_branches')}</div>
             )}
           </div>
         )}
@@ -221,7 +219,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 : user?.username || 'User'}
             </p>
             <p className="text-[10px] text-slate-500 font-bold uppercase">
-              {user?.permissions === 1 ? 'Administrator' : user?.permissions ? `Role ${user.permissions}` : 'User'}
+              {user?.permissions === 1 ? t('administrator') : user?.permissions ? `Role ${user.permissions}` : t('user')}
             </p>
           </div>
           <Settings className="w-3 h-3 text-slate-500 group-hover:rotate-90 transition-transform" />
