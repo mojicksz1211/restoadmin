@@ -162,101 +162,118 @@ const Branches: React.FC<BranchesProps> = ({ onSelectBranch, onBranchesChange })
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {loading ? (
           <div className="col-span-full bg-white rounded-2xl border border-slate-100 shadow-sm p-6 text-slate-400 text-sm">
             {t('loading_branches')}
           </div>
         ) : filteredBranches.length > 0 ? (
           filteredBranches.map((branch) => (
-            <div key={branch.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-lg transition-all transform hover:-translate-y-1 group">
-            <div className="h-24 bg-gradient-to-r from-slate-100 to-slate-200 relative overflow-hidden">
-               <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-              <div className="absolute top-4 right-4 flex items-center space-x-2">
-                <button 
-                  onClick={() => onSelectBranch(branch.id)}
-                  className="bg-white/90 p-1.5 rounded-lg hover:bg-orange-500 hover:text-white transition-all shadow-sm flex items-center space-x-1"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span className="text-[10px] font-bold uppercase">{t('switch_to')}</span>
-                </button>
-                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleOpenEdit(branch)}
-                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                    title={t('edit_branch')}
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(branch)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                    title={t('delete_branch')}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+            <div
+              key={branch.id}
+              className="group relative overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg focus-within:ring-2 focus-within:ring-orange-500/20"
+            >
+              <div
+                className={`absolute inset-x-0 top-0 h-1 ${branch.active ? 'bg-green-500' : 'bg-red-500'}`}
+                aria-hidden="true"
+              />
+              <div
+                className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-orange-500/10 blur-2xl opacity-70 transition-opacity group-hover:opacity-100"
+                aria-hidden="true"
+              />
+
+              <div className="p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm ${
+                          branch.active ? 'bg-green-500' : 'bg-red-500'
+                        }`}
+                      >
+                        <Store className="h-5 w-5 text-white" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <h3 className="truncate text-lg font-bold text-slate-900 transition-colors group-hover:text-orange-600">
+                          {branch.name}
+                        </h3>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
+                            {t('branch_code')}: {branch.code || '—'}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                              branch.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                branch.active ? 'bg-green-600' : 'bg-red-600'
+                              }`}
+                              aria-hidden="true"
+                            />
+                            {branch.active ? t('active') : t('inactive')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-2 text-sm">
+                      <div className="flex items-start gap-2">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <p className="max-h-10 overflow-hidden leading-5 text-slate-600">
+                          {branch.address || t('no_address')}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 shrink-0 text-slate-400" />
+                        <span className="font-semibold text-slate-800">{branch.phone || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleOpenEdit(branch)}
+                        className="rounded-xl p-2 text-slate-400 transition-all hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+                        title={t('edit_branch')}
+                        aria-label={t('edit_branch')}
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(branch)}
+                        className="rounded-xl p-2 text-slate-400 transition-all hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30"
+                        title={t('delete_branch')}
+                        aria-label={t('delete_branch')}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => onSelectBranch(branch.id)}
+                      className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-xs font-bold text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+                      aria-label={t('switch_to')}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      <span>{t('switch_to')}</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="absolute -bottom-6 left-6">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform ${
-                  branch.active ? 'bg-green-500' : 'bg-red-500'
-                }`}>
-                  <Store className="w-6 h-6 text-white" />
+
+                <div className="mt-5 flex items-center justify-end border-t border-slate-100 pt-4">
+                  <button
+                    onClick={() => onSelectBranch(branch.id)}
+                    className="text-sm font-semibold text-orange-600 transition-colors hover:text-orange-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30 rounded-lg px-2 py-1"
+                  >
+                    {t('manage_branch_context')} <span aria-hidden="true">→</span>
+                  </button>
                 </div>
               </div>
             </div>
-            
-            <div className="p-6 pt-10">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 group-hover:text-orange-600 transition-colors">{branch.name}</h3>
-                  <div className="flex items-center text-slate-500 text-sm mt-1">
-                    <MapPin className="w-4 h-4 mr-1" />
-                    {branch.address || t('no_address')}
-                  </div>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  branch.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                }`}>
-                  {branch.active ? t('active') : t('inactive')}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 my-6">
-                <div className="bg-slate-50 p-3 rounded-xl">
-                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">{t('branch_code')}</p>
-                  <div className="flex items-center text-slate-800">
-                    <Store className="w-4 h-4 mr-2 text-slate-400" />
-                    <span className="font-medium text-sm">{branch.code || '—'}</span>
-                  </div>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-xl">
-                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">{t('contact')}</p>
-                  <div className="flex items-center text-slate-800">
-                    <Phone className="w-4 h-4 mr-2 text-orange-500" />
-                    <span className="font-bold text-sm">{branch.phone || 'N/A'}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                <div className="flex -space-x-2">
-                  {[1,2,3].map(i => (
-                    <img key={i} src={`https://picsum.photos/32/32?random=${branch.id}${i}`} className="w-8 h-8 rounded-full border-2 border-white" alt="Staff" />
-                  ))}
-                  <div className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-600">
-                    +12
-                  </div>
-                </div>
-                <button 
-                  onClick={() => onSelectBranch(branch.id)}
-                  className="text-sm font-semibold text-orange-600 hover:text-orange-700 flex items-center"
-                >
-                  {t('manage_branch_context')} →
-                </button>
-              </div>
-            </div>
-          </div>
           ))
         ) : (
           <div className="col-span-full bg-white rounded-2xl border border-slate-100 shadow-sm p-6 text-slate-400 text-sm">

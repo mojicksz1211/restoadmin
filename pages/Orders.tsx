@@ -13,10 +13,13 @@ import {
   Eye,
   ChevronRight,
   XCircle,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import {
   getOrders,
   getOrderItems,
+  createOrder,
   updateOrderStatus,
   getOrderStatusLabel,
   ORDER_STATUS,
@@ -24,7 +27,9 @@ import {
   type OrderItemRecord,
 } from '../services/orderService';
 import { getBranches } from '../services/branchService';
-import type { BranchRecord } from '../types';
+import { getMenus } from '../services/menuService';
+import { getRestaurantTables, type RestaurantTableRecord } from '../services/tableService';
+import type { BranchRecord, MenuRecord } from '../types';
 
 interface OrdersProps {
   selectedBranchId: string;
@@ -36,10 +41,18 @@ type SwalState = {
   text: string;
   showCancel?: boolean;
   confirmText?: string;
+  confirmVariant?: 'orange' | 'green' | 'red';
   cancelText?: string;
   onConfirm?: () => void | Promise<void>;
   onCancel?: () => void;
 } | null;
+
+type NewOrderItem = {
+  menuId: string;
+  name: string;
+  unitPrice: number;
+  qty: number;
+};
 
 const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
   const { t } = useTranslation('common');
@@ -57,6 +70,21 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [swal, setSwal] = useState<SwalState>(null);
+
+  // --- New order modal state ---
+  const [newOrderOpen, setNewOrderOpen] = useState(false);
+  const [newOrderSubmitting, setNewOrderSubmitting] = useState(false);
+  const [newOrderLoadingRefs, setNewOrderLoadingRefs] = useState(false);
+  const [newOrderMenus, setNewOrderMenus] = useState<MenuRecord[]>([]);
+  const [newOrderTables, setNewOrderTables] = useState<RestaurantTableRecord[]>([]);
+
+  const [newOrderNo, setNewOrderNo] = useState('');
+  const [newOrderType, setNewOrderType] = useState<'DINE_IN' | 'TAKE_OUT' | 'DELIVERY'>('DINE_IN');
+  const [newOrderTableId, setNewOrderTableId] = useState<string>('');
+
+  const [newOrderItems, setNewOrderItems] = useState<NewOrderItem[]>([]);
+  const [newOrderSelectedMenuId, setNewOrderSelectedMenuId] = useState<string>('');
+  const [newOrderQty, setNewOrderQty] = useState<number>(1);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -125,15 +153,251 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
     setDetailItems([]);
   };
 
+  const generateOrderNo = () => {
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = pad2(d.getMonth() + 1);
+    const day = pad2(d.getDate());
+    const hh = pad2(d.getHours());
+    const mm = pad2(d.getMinutes());
+    const ss = pad2(d.getSeconds());
+    return `ORD-${y}${m}${day}-${hh}${mm}${ss}`;
+  };
+
+  const openNewOrder = () => {
+    if (selectedBranchId === 'all') {
+      setSwal({
+        type: 'warning',
+        title: 'Select a Branch First',
+        text: 'Please select a specific branch to create a new order.',
+        confirmText: 'OK',
+        confirmVariant: 'orange',
+        onConfirm: () => setSwal(null),
+      });
+      return;
+    }
+    setNewOrderNo(generateOrderNo());
+    setNewOrderType('DINE_IN');
+    setNewOrderTableId('');
+    setNewOrderItems([]);
+    setNewOrderSelectedMenuId('');
+    setNewOrderQty(1);
+    setNewOrderOpen(true);
+  };
+
+  const closeNewOrder = () => {
+    if (newOrderSubmitting) return;
+    setNewOrderOpen(false);
+  };
+
+  useEffect(() => {
+    if (!newOrderOpen) return;
+    if (selectedBranchId === 'all') return;
+
+    let cancelled = false;
+    setNewOrderLoadingRefs(true);
+    Promise.all([
+      getMenus(selectedBranchId),
+      getRestaurantTables(selectedBranchId),
+    ])
+      .then(([menus, tables]) => {
+        if (cancelled) return;
+        const usableMenus = (Array.isArray(menus) ? menus : []).filter((m) => m.active && m.isAvailable);
+        setNewOrderMenus(usableMenus);
+        setNewOrderTables(Array.isArray(tables) ? tables : []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setNewOrderMenus([]);
+        setNewOrderTables([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setNewOrderLoadingRefs(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [newOrderOpen, selectedBranchId]);
+
+  const newOrderSubtotal = newOrderItems.reduce((sum, it) => sum + it.qty * it.unitPrice, 0);
+  const newOrderGrandTotal = newOrderSubtotal;
+
+  const addNewOrderItem = () => {
+    const menuId = newOrderSelectedMenuId;
+    const qty = Number(newOrderQty);
+    if (!menuId) {
+      setSwal({
+        type: 'warning',
+        title: 'Select an Item',
+        text: 'Please select a menu item first.',
+        confirmText: 'OK',
+        confirmVariant: 'orange',
+        onConfirm: () => setSwal(null),
+      });
+      return;
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setSwal({
+        type: 'warning',
+        title: 'Invalid Quantity',
+        text: 'Quantity must be greater than 0.',
+        confirmText: 'OK',
+        confirmVariant: 'orange',
+        onConfirm: () => setSwal(null),
+      });
+      return;
+    }
+
+    const menu = newOrderMenus.find((m) => m.id === menuId);
+    if (!menu) return;
+
+    setNewOrderItems((prev) => {
+      const idx = prev.findIndex((p) => p.menuId === menuId);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], qty: copy[idx].qty + qty };
+        return copy;
+      }
+      return [
+        ...prev,
+        { menuId, name: menu.name, unitPrice: Number(menu.price || 0), qty },
+      ];
+    });
+    setNewOrderSelectedMenuId('');
+    setNewOrderQty(1);
+  };
+
+  const removeNewOrderItem = (menuId: string) => {
+    setNewOrderItems((prev) => prev.filter((p) => p.menuId !== menuId));
+  };
+
+  const submitNewOrder = async () => {
+    if (selectedBranchId === 'all') return;
+    if (!newOrderNo.trim()) {
+      setSwal({
+        type: 'warning',
+        title: 'Order No Required',
+        text: 'Please provide an order number.',
+        confirmText: 'OK',
+        confirmVariant: 'orange',
+        onConfirm: () => setSwal(null),
+      });
+      return;
+    }
+    if (newOrderType === 'DINE_IN' && !newOrderTableId) {
+      setSwal({
+        type: 'warning',
+        title: 'Table Required',
+        text: 'Please select a table for Dine-in orders.',
+        confirmText: 'OK',
+        confirmVariant: 'orange',
+        onConfirm: () => setSwal(null),
+      });
+      return;
+    }
+    if (newOrderItems.length === 0) {
+      setSwal({
+        type: 'warning',
+        title: 'Add Items',
+        text: 'Please add at least one item before creating the order.',
+        confirmText: 'OK',
+        confirmVariant: 'orange',
+        onConfirm: () => setSwal(null),
+      });
+      return;
+    }
+
+    setNewOrderSubmitting(true);
+    try {
+      await createOrder({
+        ORDER_NO: newOrderNo.trim(),
+        order_no: newOrderNo.trim(),
+        BRANCH_ID: selectedBranchId,
+        branch_id: selectedBranchId,
+        TABLE_ID: newOrderType === 'DINE_IN' && newOrderTableId ? Number(newOrderTableId) : null,
+        table_id: newOrderType === 'DINE_IN' && newOrderTableId ? Number(newOrderTableId) : null,
+        ORDER_TYPE: newOrderType,
+        order_type: newOrderType,
+        STATUS: ORDER_STATUS.PENDING,
+        SUBTOTAL: newOrderSubtotal,
+        TAX_AMOUNT: 0,
+        SERVICE_CHARGE: 0,
+        DISCOUNT_AMOUNT: 0,
+        GRAND_TOTAL: newOrderGrandTotal,
+        ORDER_ITEMS: newOrderItems.map((it) => ({
+          menu_id: Number(it.menuId),
+          qty: Number(it.qty),
+          unit_price: Number(it.unitPrice),
+          line_total: Number(it.qty) * Number(it.unitPrice),
+          status: ORDER_STATUS.PENDING,
+        })),
+        // Compatibility payload for API-style handlers (ignored by web /orders if unused)
+        items: newOrderItems.map((it) => ({
+          menu_id: Number(it.menuId),
+          qty: Number(it.qty),
+          unit_price: Number(it.unitPrice),
+          line_total: Number(it.qty) * Number(it.unitPrice),
+          status: ORDER_STATUS.PENDING,
+        })),
+      });
+
+      setNewOrderOpen(false);
+      await loadOrders();
+      setSwal({
+        type: 'success',
+        title: 'Created!',
+        text: `Order ${newOrderNo.trim()} has been created.`,
+        confirmText: 'OK',
+        confirmVariant: 'green',
+        onConfirm: () => setSwal(null),
+      });
+    } catch (e) {
+      setSwal({
+        type: 'error',
+        title: 'Error!',
+        text: e instanceof Error ? e.message : 'Failed to create order',
+        confirmText: 'OK',
+        confirmVariant: 'red',
+        onConfirm: () => setSwal(null),
+      });
+    } finally {
+      setNewOrderSubmitting(false);
+    }
+  };
+
   const confirmUpdateStatus = (order: OrderRecord, newStatus: number) => {
     const label = getOrderStatusLabel(newStatus);
+    const isSettled = newStatus === ORDER_STATUS.SETTLED;
+    const isCancelled = newStatus === ORDER_STATUS.CANCELLED;
+
+    const title = isSettled
+      ? 'Mark Order as Settled?'
+      : isCancelled
+      ? 'Cancel Order?'
+      : 'Update Order Status?';
+
+    const text = isSettled
+      ? `Mark order ${order.ORDER_NO} as "${label}"?`
+      : isCancelled
+      ? `Cancel order ${order.ORDER_NO}? This action cannot be undone.`
+      : `Change order ${order.ORDER_NO} to "${label}"?`;
+
+    const confirmText = isSettled
+      ? 'Yes, Settle'
+      : isCancelled
+      ? 'Yes, Cancel'
+      : 'Yes, Update';
+
     setSwal({
       type: 'question',
-      title: t('update_order_status'),
-      text: t('change_order_status', { orderNo: order.ORDER_NO, status: label }),
+      title: 'Update Order Status?',
+      text: `Change order ${order.ORDER_NO} to "${label}"?`,
       showCancel: true,
-      confirmText: t('yes_update'),
-      cancelText: t('cancel'),
+      confirmText: 'Yes, Update',
+      cancelText: 'Cancel',
       onConfirm: async () => {
         setSwal(null);
         setStatusSubmitting(true);
@@ -146,8 +410,8 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
           }
           setSwal({
             type: 'success',
-            title: t('updated'),
-            text: t('order_status_updated', { orderNo: order.ORDER_NO, status: label }),
+            title: 'Updated!',
+            text: `Order ${order.ORDER_NO} is now ${label}.`,
             onConfirm: () => setSwal(null),
           });
         } catch (e) {
@@ -233,7 +497,7 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
           className="bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-slate-50 shadow-sm disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {t('refresh')}
+          Refresh
         </button>
       </div>
 
@@ -270,6 +534,201 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
           <div className="text-sm">
             <p className="font-bold">{t('unable_to_load_orders')}</p>
             <p className="text-xs text-red-600">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* New order modal */}
+      {newOrderOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">New Order</h2>
+                <p className="text-xs text-slate-500">
+                  Branch: <span className="font-semibold text-slate-700">{currentBranchName}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeNewOrder}
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50"
+                disabled={newOrderSubmitting}
+                title="Close"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Order No</label>
+                  <input
+                    value={newOrderNo}
+                    onChange={(e) => setNewOrderNo(e.target.value)}
+                    className="mt-1 w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-orange-500/20 focus:bg-white focus:outline-none"
+                    placeholder="e.g. ORD-20260211-101530"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Order Type</label>
+                  <select
+                    value={newOrderType}
+                    onChange={(e) => setNewOrderType(e.target.value as typeof newOrderType)}
+                    className="mt-1 w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700"
+                  >
+                    <option value="DINE_IN">Dine-in</option>
+                    <option value="TAKE_OUT">Take out</option>
+                    <option value="DELIVERY">Delivery</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Table</label>
+                  <select
+                    value={newOrderTableId}
+                    onChange={(e) => setNewOrderTableId(e.target.value)}
+                    disabled={newOrderType !== 'DINE_IN' || newOrderLoadingRefs}
+                    className="mt-1 w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 disabled:opacity-60"
+                  >
+                    <option value="">
+                      {newOrderType !== 'DINE_IN'
+                        ? 'Not required for this order type'
+                        : newOrderLoadingRefs
+                        ? 'Loading tables...'
+                        : 'Select a table'}
+                    </option>
+                    {newOrderTables
+                      .filter((t) => t.status === 1)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          Table {t.tableNumber} {t.capacity ? `· ${t.capacity} pax` : ''}
+                        </option>
+                      ))}
+                  </select>
+                  {newOrderType === 'DINE_IN' && !newOrderLoadingRefs && newOrderTables.filter((t) => t.status === 1).length === 0 && (
+                    <p className="mt-1 text-xs text-slate-500">No available tables found.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                <h3 className="text-sm font-bold text-slate-700 mb-3">Items</h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                  <div className="md:col-span-8">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Menu Item</label>
+                    <select
+                      value={newOrderSelectedMenuId}
+                      onChange={(e) => setNewOrderSelectedMenuId(e.target.value)}
+                      disabled={newOrderLoadingRefs}
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 disabled:opacity-60"
+                    >
+                      <option value="">
+                        {newOrderLoadingRefs ? 'Loading menu...' : 'Select an item'}
+                      </option>
+                      {newOrderMenus.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} — ₱{Number(m.price).toLocaleString()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Qty</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={newOrderQty}
+                      onChange={(e) => setNewOrderQty(Number(e.target.value))}
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl bg-white border border-slate-200 text-sm focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <button
+                      type="button"
+                      onClick={addNewOrderItem}
+                      disabled={newOrderLoadingRefs}
+                      className="w-full px-3 py-2.5 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 border border-slate-100 rounded-xl overflow-hidden bg-white">
+                  {newOrderItems.length === 0 ? (
+                    <div className="p-4 text-sm text-slate-500">No items added yet.</div>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-bold text-slate-600">Item</th>
+                          <th className="px-4 py-2 text-right font-bold text-slate-600">Qty</th>
+                          <th className="px-4 py-2 text-right font-bold text-slate-600">Unit</th>
+                          <th className="px-4 py-2 text-right font-bold text-slate-600">Total</th>
+                          <th className="px-4 py-2 text-right font-bold text-slate-600">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {newOrderItems.map((it) => (
+                          <tr key={it.menuId}>
+                            <td className="px-4 py-2">{it.name}</td>
+                            <td className="px-4 py-2 text-right">{it.qty}</td>
+                            <td className="px-4 py-2 text-right">₱{Number(it.unitPrice).toLocaleString()}</td>
+                            <td className="px-4 py-2 text-right font-medium">₱{Number(it.qty * it.unitPrice).toLocaleString()}</td>
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => removeNewOrderItem(it.menuId)}
+                                className="inline-flex items-center justify-center p-2 rounded-lg text-red-600 hover:bg-red-50"
+                                title="Remove"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+                  <div className="text-sm text-slate-600">
+                    Subtotal:{' '}
+                    <span className="font-bold text-slate-900">₱{Number(newOrderSubtotal).toLocaleString()}</span>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Grand Total:{' '}
+                    <span className="font-bold text-slate-900">₱{Number(newOrderGrandTotal).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeNewOrder}
+                disabled={newOrderSubmitting}
+                className="px-6 py-2.5 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitNewOrder}
+                disabled={newOrderSubmitting}
+                className="px-6 py-2.5 text-white bg-green-500 hover:bg-green-600 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {newOrderSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Create Order
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -569,7 +1028,11 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
                 }}
                 disabled={statusSubmitting}
                 className={`px-6 py-2.5 text-white rounded-xl font-semibold flex items-center justify-center gap-2 ${
-                  swal.type === 'error'
+                  swal.confirmVariant === 'red'
+                    ? 'bg-red-500 hover:bg-red-600'
+                    : swal.confirmVariant === 'green'
+                    ? 'bg-green-500 hover:bg-green-600'
+                    : swal.type === 'error'
                     ? 'bg-red-500 hover:bg-red-600'
                     : swal.type === 'success'
                     ? 'bg-green-500 hover:bg-green-600'

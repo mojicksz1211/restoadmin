@@ -34,6 +34,36 @@ export type OrderItemRecord = {
   PREPARED_BY?: string | null;
 };
 
+export type CreateOrderItemPayload = {
+  menu_id: number;
+  qty: number;
+  unit_price: number;
+  line_total: number;
+  status?: number;
+  remarks?: string | null;
+};
+
+export type CreateOrderPayload = {
+  ORDER_NO: string;
+  BRANCH_ID?: string | number;
+  TABLE_ID?: number | null;
+  ORDER_TYPE?: string | null;
+  STATUS?: number;
+  SUBTOTAL?: number;
+  TAX_AMOUNT?: number;
+  SERVICE_CHARGE?: number;
+  DISCOUNT_AMOUNT?: number;
+  GRAND_TOTAL?: number;
+  ORDER_ITEMS?: CreateOrderItemPayload[];
+
+  // API-style aliases (some handlers use lowercase keys)
+  order_no?: string;
+  branch_id?: string | number;
+  table_id?: number | null;
+  order_type?: string | null;
+  items?: CreateOrderItemPayload[];
+};
+
 type ApiResponse<T> = {
   success: boolean;
   data: T;
@@ -131,4 +161,17 @@ export async function updateOrderStatus(orderId: string, status: number): Promis
     body: JSON.stringify({ status }),
   });
   await handleResponse<{ order_id: number; status: number }>(response);
+}
+
+export async function createOrder(payload: CreateOrderPayload): Promise<{ id: number; order_no: string }> {
+  const response = await fetch(buildUrl('/orders'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<{ id: number; order_no: string }>(response);
 }
