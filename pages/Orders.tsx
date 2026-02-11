@@ -61,7 +61,7 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
     setError(null);
     try {
       const data = await getOrders(selectedBranchId);
-      setOrders(data);
+      setOrders(Array.isArray(data) ? data : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load orders');
       setOrders([]);

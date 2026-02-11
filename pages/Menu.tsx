@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronRight, Plus, Edit3, Trash2, Languages } from 'lucide-react';
+import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronRight, Plus, Edit3, Trash2, Languages, AlertCircle, Loader2 } from 'lucide-react';
 import { MOCK_BRANCHES } from '../constants';
-import { MenuCategory, MenuRecord } from '../types';
-import { getMenuCategories, getMenus } from '../services/menuService';
+import { MenuCategory, MenuRecord, BranchRecord } from '../types';
+import { getMenuCategories, getMenus, createMenu, updateMenu, deleteMenu } from '../services/menuService';
 import { translateText, i18nToTranslateTarget } from '../services/translateService';
 
 interface MenuProps {
@@ -150,7 +150,13 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     try {
       const names = filteredMenus.map((m) => m.name);
       const descriptions = filteredMenus.map((m) => m.description || '');
-      const uniqueCategories = [...new Set(filteredMenus.map((m) => m.categoryName).filter(Boolean))];
+      const uniqueCategories = Array.from(
+        new Set(
+          filteredMenus
+            .map((m) => m.categoryName)
+            .filter((c): c is string => typeof c === 'string' && c.length > 0)
+        )
+      );
 
       const translateBatch = async (texts: string[]) => {
         const results: Awaited<ReturnType<typeof translateText>> = [];
@@ -165,11 +171,11 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
       const [nameResults, descResults, categoryResults] = await Promise.all([
         translateBatch(names),
         translateBatch(descriptions),
-        uniqueCategories.length > 0 ? translateText(uniqueCategories, target) : Promise.resolve([]),
+        uniqueCategories.length > 0 ? translateText(uniqueCategories as string[], target) : Promise.resolve([]),
       ]);
 
       const categoryMap: Record<string, string> = {};
-      uniqueCategories.forEach((cat, i) => {
+      (uniqueCategories as string[]).forEach((cat, i) => {
         categoryMap[cat] = categoryResults[i]?.translatedText ?? cat;
       });
 

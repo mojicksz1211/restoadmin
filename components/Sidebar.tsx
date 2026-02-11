@@ -79,7 +79,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
     { 
       id: 'orders', 
-      label: t.orders, 
+      label: t('orders'), 
       icon: Receipt,
       canAccess: canViewOrders
     },
