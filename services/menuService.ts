@@ -117,3 +117,119 @@ export const getMenuCategories = async (branchId?: string): Promise<MenuCategory
   const data = await handleResponse<CategoryApiRecord[]>(response);
   return data.map(mapCategoryRecord);
 };
+
+// --- Create / Update / Delete (multipart for create/update when file present) ---
+
+export type CreateMenuPayload = {
+  branchId: string;
+  categoryId: string | null;
+  name: string;
+  description: string | null;
+  price: number;
+  isAvailable: boolean;
+  imageFile?: File | null;
+};
+
+export type UpdateMenuPayload = {
+  categoryId: string | null;
+  name: string;
+  description: string | null;
+  price: number;
+  isAvailable: boolean;
+  existingImagePath?: string | null; // backend keeps this if no new file
+  imageFile?: File | null;
+};
+
+function buildFormData(
+  body: Record<string, string | number | boolean | null>,
+  file?: File | null,
+  fileFieldName: string = 'MENU_IMG'
+): FormData {
+  const form = new FormData();
+  Object.entries(body).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      form.append(key, String(value));
+    }
+  });
+  if (file) {
+    form.append(fileFieldName, file);
+  }
+  return form;
+}
+
+export async function createMenu(payload: CreateMenuPayload): Promise<number> {
+  const body: Record<string, string | number | boolean | null> = {
+    BRANCH_ID: payload.branchId,
+    CATEGORY_ID: payload.categoryId || '',
+    MENU_NAME: payload.name,
+    MENU_DESCRIPTION: payload.description || '',
+    MENU_PRICE: payload.price,
+    IS_AVAILABLE: payload.isAvailable ? 1 : 0,
+  };
+  const form = buildFormData(body, payload.imageFile ?? null);
+  const token = getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(buildUrl('/menu'), {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+    body: form,
+  });
+  const json = (await response.json()) as ApiResponse<{ id: number }>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to create menu');
+  }
+  return json.data?.id ?? 0;
+}
+
+function toRelativeImagePath(urlOrPath: string | null | undefined): string {
+  if (!urlOrPath) return '';
+  if (urlOrPath.startsWith('http')) {
+    try {
+      return new URL(urlOrPath).pathname;
+    } catch {
+      return urlOrPath;
+    }
+  }
+  return urlOrPath;
+}
+
+export async function updateMenu(id: string, payload: UpdateMenuPayload): Promise<void> {
+  const body: Record<string, string | number | boolean | null> = {
+    CATEGORY_ID: payload.categoryId || '',
+    MENU_NAME: payload.name,
+    MENU_DESCRIPTION: payload.description || '',
+    MENU_PRICE: payload.price,
+    IS_AVAILABLE: payload.isAvailable ? 1 : 0,
+    MENU_IMG: toRelativeImagePath(payload.existingImagePath) || '', // backend keeps if no new file
+  };
+  const form = buildFormData(body, payload.imageFile ?? null);
+  const token = getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(buildUrl(`/menu/${id}`), {
+    method: 'PUT',
+    credentials: 'include',
+    headers,
+    body: form,
+  });
+  const json = (await response.json()) as ApiResponse<null>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to update menu');
+  }
+}
+
+export async function deleteMenu(id: string): Promise<void> {
+  const response = await fetch(buildUrl(`/menu/${id}`), {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+  const json = (await response.json()) as ApiResponse<null> & { error?: string };
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to delete menu');
+  }
+}

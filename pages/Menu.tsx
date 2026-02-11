@@ -1,8 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronRight, Plus, Edit3, Trash2 } from 'lucide-react';
-import { MOCK_BRANCHES } from '../constants';
+import { Filter, RefreshCw, Search, Utensils, AlertTriangle, AlertCircle, CheckCircle2, X, ChevronRight, Plus, Edit3, Trash2, Loader2 } from 'lucide-react';
 import { MenuCategory, MenuRecord } from '../types';
-import { getMenuCategories, getMenus } from '../services/menuService';
+import {
+  getMenuCategories,
+  getMenus,
+  createMenu,
+  updateMenu,
+  deleteMenu,
+} from '../services/menuService';
+import { getBranches } from '../services/branchService';
+import type { BranchRecord } from '../types';
 
 interface MenuProps {
   selectedBranchId: string;
@@ -30,10 +37,28 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     imageUrl: '',
     branchId: selectedBranchId === 'all' ? '' : selectedBranchId,
   });
+  const [branches, setBranches] = useState<BranchRecord[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MenuRecord | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
-  const currentBranchName = selectedBranchId === 'all' 
-    ? 'All Branches' 
-    : MOCK_BRANCHES.find(b => b.id === selectedBranchId)?.name;
+  // SweetAlert-style dialogs (success / error / confirmation)
+  const [swal, setSwal] = useState<{
+    type: 'question' | 'success' | 'error' | 'warning';
+    title: string;
+    text: string;
+    showCancel?: boolean;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void | Promise<void>;
+    onCancel?: () => void;
+  } | null>(null);
+
+  const currentBranchName = selectedBranchId === 'all'
+    ? 'All Branches'
+    : branches.find(b => b.id === selectedBranchId)?.name ?? 'Branch';
 
   const refreshData = async () => {
     setLoading(true);
@@ -57,6 +82,10 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   useEffect(() => {
     refreshData();
   }, [selectedBranchId]);
+
+  useEffect(() => {
+    getBranches().then(setBranches).catch(() => setBranches([]));
+  }, []);
 
   useEffect(() => {
     if (selectedBranchId !== 'all') {
@@ -130,6 +159,8 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
       imageUrl: '',
       branchId: selectedBranchId === 'all' ? '' : selectedBranchId,
     });
+    setImageFile(null);
+    setSubmitError(null);
   };
 
   const handleOpenAdd = () => {
@@ -148,47 +179,135 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
       imageUrl: menu.imageUrl || '',
       branchId: menu.branchId,
     });
+    setImageFile(null);
+    setSubmitError(null);
     setIsEditModalOpen(true);
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteSubmitting(true);
+    try {
+      await deleteMenu(deleteTarget.id);
+      await refreshData();
+      setDeleteTarget(null);
+      setSwal({
+        type: 'success',
+        title: 'Deleted!',
+        text: `Menu item "${deleteTarget.name}" deleted successfully!`,
+        onConfirm: () => setSwal(null),
+      });
+    } catch (err) {
+      setSwal({
+        type: 'error',
+        title: 'Error!',
+        text: err instanceof Error ? err.message : 'Delete failed',
+        onConfirm: () => {
+          setSwal(null);
+          setDeleteTarget(null);
+        },
+      });
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
   const handleDelete = (menu: MenuRecord) => {
-    const confirmed = window.confirm(`Delete menu item "${menu.name}"?`);
-    if (!confirmed) return;
-    setMenus((prev) => prev.filter((item) => item.id !== menu.id));
+    setDeleteTarget(menu);
+    setSwal({
+      type: 'question',
+      title: 'Delete Menu Item?',
+      text: `Are you sure you want to delete "${menu.name}"? This action cannot be undone.`,
+      showCancel: true,
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      onConfirm: confirmDelete,
+      onCancel: () => {
+        setSwal(null);
+        setDeleteTarget(null);
+      },
+    });
   };
 
   const handleSubmit = (mode: 'add' | 'edit') => {
-    const branch = MOCK_BRANCHES.find((b) => b.id === formState.branchId);
-    const category = categories.find((c) => c.id === formState.categoryId);
-    const payload: MenuRecord = {
-      id: mode === 'add' ? `temp-${Date.now()}` : (editingMenu?.id || ''),
-      branchId: formState.branchId || (selectedBranchId === 'all' ? '' : selectedBranchId),
-      branchName: branch?.name || '',
-      branchCode: branch?.name ? (branch?.name.split(' ')[0] || '') : '',
-      branchLabel: branch?.name || '',
-      categoryId: formState.categoryId || null,
-      categoryName: category?.name || 'Uncategorized',
-      name: formState.name.trim(),
-      description: formState.description.trim() || null,
-      imageUrl: formState.imageUrl.trim() || null,
-      price: Number(formState.price || 0),
-      isAvailable: formState.isAvailable,
-      active: true,
-      encodedBy: '',
-      encodedAt: '',
-      editedBy: null,
-      editedAt: null,
-    };
-
-    if (mode === 'add') {
-      setMenus((prev) => [payload, ...prev]);
-      setIsAddModalOpen(false);
-    } else if (editingMenu) {
-      setMenus((prev) => prev.map((item) => (item.id === editingMenu.id ? { ...item, ...payload } : item)));
-      setIsEditModalOpen(false);
-      setEditingMenu(null);
+    const branchId = formState.branchId || (selectedBranchId === 'all' ? '' : selectedBranchId);
+    if (mode === 'add' && !branchId) {
+      setSubmitError('Please select a branch.');
+      return;
     }
-    resetForm();
+
+    const menuName = formState.name.trim() || 'Untitled';
+    const actionTitle = mode === 'add' ? 'Create Menu Item?' : 'Update Menu Item?';
+    const actionText = mode === 'add'
+      ? `Are you sure you want to add "${menuName}"?`
+      : `Are you sure you want to update "${menuName}"?`;
+
+    setSwal({
+      type: 'question',
+      title: actionTitle,
+      text: actionText,
+      showCancel: true,
+      confirmText: 'Yes, Continue',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        setSwal(null);
+        setSubmitting(true);
+        setSubmitError(null);
+        setError(null);
+        try {
+          if (mode === 'add') {
+            await createMenu({
+              branchId: branchId!,
+              categoryId: formState.categoryId || null,
+              name: formState.name.trim(),
+              description: formState.description.trim() || null,
+              price: Number(formState.price || 0),
+              isAvailable: formState.isAvailable,
+              imageFile: imageFile ?? undefined,
+            });
+            await refreshData();
+            setIsAddModalOpen(false);
+            resetForm();
+            setSwal({
+              type: 'success',
+              title: 'Success!',
+              text: `Menu item "${menuName}" created successfully!`,
+              onConfirm: () => setSwal(null),
+            });
+          } else if (editingMenu) {
+            await updateMenu(editingMenu.id, {
+              categoryId: formState.categoryId || null,
+              name: formState.name.trim(),
+              description: formState.description.trim() || null,
+              price: Number(formState.price || 0),
+              isAvailable: formState.isAvailable,
+              existingImagePath: formState.imageUrl || undefined,
+              imageFile: imageFile ?? undefined,
+            });
+            await refreshData();
+            setIsEditModalOpen(false);
+            setEditingMenu(null);
+            resetForm();
+            setSwal({
+              type: 'success',
+              title: 'Success!',
+              text: `Menu item "${menuName}" updated successfully!`,
+              onConfirm: () => setSwal(null),
+            });
+          }
+        } catch (err) {
+          setSwal({
+            type: 'error',
+            title: 'Error!',
+            text: err instanceof Error ? err.message : 'Request failed',
+            onConfirm: () => setSwal(null),
+          });
+        } finally {
+          setSubmitting(false);
+        }
+      },
+      onCancel: () => setSwal(null),
+    });
   };
 
   return (
@@ -509,15 +628,16 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                   />
                 </div>
                 {selectedBranchId === 'all' && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 sm:col-span-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Target Branch</label>
                     <select
+                      required
                       value={formState.branchId}
                       onChange={(e) => setFormState((prev) => ({ ...prev, branchId: e.target.value }))}
                       className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all appearance-none"
                     >
                       <option value="">Select branch</option>
-                      {MOCK_BRANCHES.map((branch) => (
+                      {branches.map((branch) => (
                         <option key={branch.id} value={branch.id}>{branch.name}</option>
                       ))}
                     </select>
@@ -535,16 +655,22 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                   </select>
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Image URL</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Image</label>
                   <input
-                    type="text"
-                    value={formState.imageUrl}
-                    onChange={(e) => setFormState((prev) => ({ ...prev, imageUrl: e.target.value }))}
-                    placeholder="https://..."
-                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-100 file:text-orange-700 file:text-sm file:font-medium"
                   />
+                  {isEditModalOpen && formState.imageUrl && !imageFile && (
+                    <p className="text-[10px] text-slate-500 mt-1">Current image kept. Choose a new file to replace.</p>
+                  )}
                 </div>
               </div>
+
+              {submitError && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-xl">{submitError}</div>
+              )}
 
               <div className="pt-4 flex items-center space-x-3">
                 <button 
@@ -555,18 +681,94 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                     setEditingMenu(null);
                     resetForm();
                   }}
-                  className="flex-1 px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit"
-                  className="flex-[2] px-4 py-3 bg-orange-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:bg-orange-600 transition-all"
+                  disabled={submitting}
+                  className="flex-[2] px-4 py-3 bg-orange-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:bg-orange-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {isEditModalOpen ? 'Update Menu' : 'Save Menu'}
+                  {submitting ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    isEditModalOpen ? 'Update Menu' : 'Save Menu'
+                  )}
                 </button>
               </div>
             </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SweetAlert-style popup (success / error / confirmation) */}
+      {swal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="flex justify-center mb-4">
+                {swal.type === 'question' && (
+                  <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                    <AlertCircle className="w-10 h-10 text-blue-500" />
+                  </div>
+                )}
+                {swal.type === 'success' && (
+                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                    <CheckCircle2 className="w-10 h-10 text-green-500" />
+                  </div>
+                )}
+                {swal.type === 'error' && (
+                  <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+                    <X className="w-10 h-10 text-red-500" />
+                  </div>
+                )}
+                {swal.type === 'warning' && (
+                  <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center">
+                    <AlertTriangle className="w-10 h-10 text-yellow-500" />
+                  </div>
+                )}
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900 text-center mb-2">{swal.title}</h3>
+              <p className="text-slate-600 text-center mb-6">{swal.text}</p>
+              <div className="flex justify-center gap-3">
+                {swal.showCancel && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      swal.onCancel?.();
+                      setSwal(null);
+                    }}
+                    className="px-6 py-2.5 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold transition-colors"
+                  >
+                    {swal.cancelText || 'Cancel'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (swal.onConfirm) await swal.onConfirm();
+                  }}
+                  disabled={submitting || deleteSubmitting}
+                  className={`px-6 py-2.5 text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 ${
+                    swal.type === 'error'
+                      ? 'bg-red-500 hover:bg-red-600'
+                      : swal.type === 'warning'
+                      ? 'bg-yellow-500 hover:bg-yellow-600'
+                      : swal.type === 'success'
+                      ? 'bg-green-500 hover:bg-green-600'
+                      : 'bg-orange-500 hover:bg-orange-600'
+                  } disabled:opacity-50`}
+                >
+                  {(submitting || deleteSubmitting) && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {swal.confirmText || 'OK'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

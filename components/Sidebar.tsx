@@ -14,7 +14,8 @@ import {
   AlertCircle,
   Clock,
   ShieldCheck,
-  X
+  X,
+  Receipt
 } from 'lucide-react';
 import { TRANSLATIONS } from '../constants';
 import { BranchOption, AuthUser } from '../types';
@@ -55,6 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     canManageInventory,
     canManageStaff,
     canManageUsers,
+    canViewOrders,
   } = usePermissions(user);
 
   // Define all menu items with their permission requirements
@@ -76,6 +78,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       label: t.menu, 
       icon: Utensils,
       canAccess: canManageMenu
+    },
+    { 
+      id: 'orders', 
+      label: t.orders, 
+      icon: Receipt,
+      canAccess: canViewOrders
     },
     { 
       id: 'inventory', 
