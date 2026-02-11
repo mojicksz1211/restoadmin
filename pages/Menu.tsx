@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronRight, Plus, Edit3, Trash2, Languages, AlertCircle, Loader2 } from 'lucide-react';
+import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronRight, Plus, Edit3, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 import { MOCK_BRANCHES } from '../constants';
 import { MenuCategory, MenuRecord, BranchRecord } from '../types';
 import { getMenuCategories, getMenus, createMenu, updateMenu, deleteMenu } from '../services/menuService';
@@ -260,15 +260,15 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
       setDeleteTarget(null);
       setSwal({
         type: 'success',
-        title: 'Deleted!',
-        text: `Menu item "${deleteTarget.name}" deleted successfully!`,
+        title: t('deleted'),
+        text: t('menu_deleted', { name: deleteTarget.name }),
         onConfirm: () => setSwal(null),
       });
     } catch (err) {
       setSwal({
         type: 'error',
-        title: 'Error!',
-        text: err instanceof Error ? err.message : 'Delete failed',
+        title: t('error'),
+        text: err instanceof Error ? err.message : t('delete_failed'),
         onConfirm: () => {
           setSwal(null);
           setDeleteTarget(null);
@@ -283,11 +283,11 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     setDeleteTarget(menu);
     setSwal({
       type: 'question',
-      title: 'Delete Menu Item?',
-      text: `Are you sure you want to delete "${menu.name}"? This action cannot be undone.`,
+      title: t('delete_menu_item'),
+      text: t('delete_menu_confirm', { name: menu.name }),
       showCancel: true,
-      confirmText: 'Yes, Delete',
-      cancelText: 'Cancel',
+      confirmText: t('yes_delete'),
+      cancelText: t('cancel'),
       onConfirm: confirmDelete,
       onCancel: () => {
         setSwal(null);
@@ -299,23 +299,23 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   const handleSubmit = (mode: 'add' | 'edit') => {
     const branchId = formState.branchId || (selectedBranchId === 'all' ? '' : selectedBranchId);
     if (mode === 'add' && !branchId) {
-      setSubmitError('Please select a branch.');
+      setSubmitError(t('please_select_branch'));
       return;
     }
 
-    const menuName = formState.name.trim() || 'Untitled';
-    const actionTitle = mode === 'add' ? 'Create Menu Item?' : 'Update Menu Item?';
+    const menuName = formState.name.trim() || t('untitled');
+    const actionTitle = mode === 'add' ? t('create_menu_item') : t('update_menu_item');
     const actionText = mode === 'add'
-      ? `Are you sure you want to add "${menuName}"?`
-      : `Are you sure you want to update "${menuName}"?`;
+      ? t('create_menu_confirm', { name: menuName })
+      : t('update_menu_confirm', { name: menuName });
 
     setSwal({
       type: 'question',
       title: actionTitle,
       text: actionText,
       showCancel: true,
-      confirmText: 'Yes, Continue',
-      cancelText: 'Cancel',
+      confirmText: t('yes_continue'),
+      cancelText: t('cancel'),
       onConfirm: async () => {
         setSwal(null);
         setSubmitting(true);
@@ -337,8 +337,8 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             resetForm();
             setSwal({
               type: 'success',
-              title: 'Success!',
-              text: `Menu item "${menuName}" created successfully!`,
+              title: t('success'),
+              text: t('menu_created', { name: menuName }),
               onConfirm: () => setSwal(null),
             });
           } else if (editingMenu) {
@@ -357,16 +357,16 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             resetForm();
             setSwal({
               type: 'success',
-              title: 'Success!',
-              text: `Menu item "${menuName}" updated successfully!`,
+              title: t('success'),
+              text: t('menu_updated', { name: menuName }),
               onConfirm: () => setSwal(null),
             });
           }
         } catch (err) {
           setSwal({
             type: 'error',
-            title: 'Error!',
-            text: err instanceof Error ? err.message : 'Request failed',
+            title: t('error'),
+            text: err instanceof Error ? err.message : t('request_failed'),
             onConfirm: () => setSwal(null),
           });
         } finally {
@@ -400,16 +400,6 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
           >
             <Plus className="w-4 h-4" />
             <span>{t('add_menu')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleTranslateTable}
-            disabled={translateLoading || filteredMenus.length === 0}
-            className="w-full md:w-auto bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center space-x-2 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
-            title={t('translate_table')}
-          >
-            <Languages className={`w-4 h-4 ${translateLoading ? 'animate-pulse' : ''}`} />
-            <span>{translateLoading ? t('loading') : t('translate_to', { lang: i18n.language === 'ko' ? t('korean') : t('english') })}</span>
           </button>
         </div>
       </div>
@@ -543,14 +533,14 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                           <button
                             onClick={() => handleOpenEdit(menu)}
                             className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                            title="Edit Menu"
+                            title={t('edit_menu')}
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(menu)}
                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            title="Delete Menu"
+                            title={t('delete_menu')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -564,8 +554,8 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                   <td colSpan={selectedBranchId === 'all' ? 6 : 5} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center text-slate-400">
                       <Utensils className="w-12 h-12 mb-4 opacity-20" />
-                      <p className="text-lg font-medium">No menu items found</p>
-                      <p className="text-sm">Try adjusting your filters or check the backend connection.</p>
+                      <p className="text-lg font-medium">{t('no_menu_items_found')}</p>
+                      <p className="text-sm">{t('try_adjusting_filters')}</p>
                     </div>
                   </td>
                 </tr>
@@ -578,8 +568,8 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
       <div className="px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <p className="text-xs font-medium text-slate-500">
-            Showing <span className="text-slate-900 font-bold">{paginatedMenus.length}</span> of{' '}
-            <span className="text-slate-900 font-bold">{filteredMenus.length}</span> menu items
+            {t('showing')} <span className="text-slate-900 font-bold">{paginatedMenus.length}</span> {t('of')}{' '}
+            <span className="text-slate-900 font-bold">{filteredMenus.length}</span> {t('menu_items_label')}
           </p>
           <div className="h-4 w-px bg-slate-200"></div>
           <p className="text-xs text-slate-500 font-medium">
@@ -642,10 +632,10 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">
-                    {isEditModalOpen ? 'Edit Menu Item' : 'Add New Menu'}
+                    {isEditModalOpen ? t('edit_menu_item') : t('add_new_menu')}
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
-                    {isEditModalOpen ? 'Update menu details' : `Add to ${currentBranchName}`}
+                    {isEditModalOpen ? t('update_menu_details') : t('add_to_branch', { branch: currentBranchName })}
                   </p>
                 </div>
               </div>
@@ -671,59 +661,59 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Menu Name</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('menu_name')}</label>
                   <input
                     required
                     type="text"
                     value={formState.name}
                     onChange={(e) => setFormState((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g. Beef Kare-Kare"
+                    placeholder={t('menu_name_placeholder')}
                     className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all"
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Description</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('description')}</label>
                   <textarea
                     value={formState.description}
                     onChange={(e) => setFormState((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder="Short description"
+                    placeholder={t('description_placeholder')}
                     className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all min-h-[90px]"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Category</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('category')}</label>
                   <select
                     value={formState.categoryId}
                     onChange={(e) => setFormState((prev) => ({ ...prev, categoryId: e.target.value }))}
                     className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all appearance-none"
                   >
-                    <option value="">Uncategorized</option>
+                    <option value="">{t('uncategorized')}</option>
                     {categories.map(category => (
                       <option key={category.id} value={category.id}>{category.name}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Price (₱)</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('price_label')}</label>
                   <input
                     required
                     type="number"
                     value={formState.price}
                     onChange={(e) => setFormState((prev) => ({ ...prev, price: e.target.value }))}
-                    placeholder="0.00"
+                    placeholder={t('price_placeholder')}
                     className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all"
                   />
                 </div>
                 {selectedBranchId === 'all' && (
                   <div className="space-y-1.5 sm:col-span-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Target Branch</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('target_branch')}</label>
                     <select
                       required
                       value={formState.branchId}
                       onChange={(e) => setFormState((prev) => ({ ...prev, branchId: e.target.value }))}
                       className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all appearance-none"
                     >
-                      <option value="">Select branch</option>
+                      <option value="">{t('select_branch')}</option>
                       {branches.map((branch) => (
                         <option key={branch.id} value={branch.id}>{branch.name}</option>
                       ))}
@@ -731,7 +721,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Availability</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('availability')}</label>
                   <select
                     value={formState.isAvailable ? 'yes' : 'no'}
                     onChange={(e) => setFormState((prev) => ({ ...prev, isAvailable: e.target.value === 'yes' }))}
@@ -742,7 +732,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                   </select>
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Image</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('image')}</label>
                   <input
                     type="file"
                     accept="image/*"
@@ -750,7 +740,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                     className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-100 file:text-orange-700 file:text-sm file:font-medium"
                   />
                   {isEditModalOpen && formState.imageUrl && !imageFile && (
-                    <p className="text-[10px] text-slate-500 mt-1">Current image kept. Choose a new file to replace.</p>
+                    <p className="text-[10px] text-slate-500 mt-1">{t('current_image_kept')}</p>
                   )}
                 </div>
               </div>
@@ -771,7 +761,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                   disabled={submitting}
                   className="flex-1 px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button 
                   type="submit"
@@ -781,10 +771,10 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                   {submitting ? (
                     <>
                       <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Saving...
+                      {t('saving')}
                     </>
                   ) : (
-                    isEditModalOpen ? 'Update Menu' : 'Save Menu'
+                    isEditModalOpen ? t('update_menu') : t('save_menu')
                   )}
                 </button>
               </div>

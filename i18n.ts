@@ -9,6 +9,10 @@ export const defaultNS = 'common';
 export const supportedLngs = ['en', 'ko'] as const;
 export type SupportedLocale = (typeof supportedLngs)[number];
 
+// Suppress i18next promotional message
+const originalConsoleLog = console.log;
+console.log = () => {};
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
@@ -28,6 +32,10 @@ i18n
       caches: ['localStorage'],
       lookupLocalStorage: 'restoadmin_lang',
     },
+    debug: false,
   });
+
+// Restore console.log after initialization
+console.log = originalConsoleLog;
 
 export default i18n;
