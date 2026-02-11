@@ -491,14 +491,28 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
             {t('orders_for')} <span className="text-orange-600 font-semibold">{currentBranchName}</span>.
           </p>
         </div>
-        <button
-          onClick={loadOrders}
-          disabled={loading}
-          className="bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-slate-50 shadow-sm disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openNewOrder}
+            aria-disabled={selectedBranchId === 'all'}
+            className={`bg-orange-500 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-orange-600 shadow-sm ${
+              selectedBranchId === 'all' ? 'opacity-60' : ''
+            }`}
+            title={selectedBranchId === 'all' ? 'Select a branch to create an order' : 'Create new order'}
+          >
+            <Plus className="w-4 h-4" />
+            New Order
+          </button>
+          <button
+            onClick={loadOrders}
+            disabled={loading}
+            className="bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-slate-50 shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
@@ -599,11 +613,14 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
                         ? 'Loading tables...'
                         : 'Select a table'}
                     </option>
-                    {newOrderTables
-                      .filter((t) => t.status === 1)
-                      .map((t) => (
+                    {(
+                      newOrderTables.some((t) => t.status === 1)
+                        ? newOrderTables.filter((t) => t.status === 1)
+                        : newOrderTables
+                    ).map((t) => (
                         <option key={t.id} value={t.id}>
-                          Table {t.tableNumber} {t.capacity ? `· ${t.capacity} pax` : ''}
+                          Table {t.tableNumber} {t.capacity ? `· ${t.capacity} pax` : ''}{' '}
+                          {newOrderTables.some((x) => x.status === 1) ? '' : t.status === 2 ? '· Occupied' : ''}
                         </option>
                       ))}
                   </select>
