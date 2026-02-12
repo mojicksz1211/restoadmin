@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Branches from './pages/Branches';
 import Menu from './pages/Menu';
 import Orders from './pages/Orders';
+import Billing from './pages/Billing';
 import Inventory from './pages/Inventory';
 import StaffPage from './pages/Staff';
 import UserManagement from './pages/UserManagement';
@@ -72,6 +73,12 @@ const App: React.FC = () => {
         return (
           <ProtectedRoute user={authUser} requireAuth>
             <Orders selectedBranchId={selectedBranchId} />
+          </ProtectedRoute>
+        );
+      case 'billing':
+        return (
+          <ProtectedRoute user={authUser} requiredPermissions={[PERMISSION_LEVELS.ADMIN, PERMISSION_LEVELS.MANAGER, PERMISSION_LEVELS.CASHIER]}>
+            <Billing selectedBranchId={selectedBranchId} />
           </ProtectedRoute>
         );
       case 'inventory':

@@ -1,16 +1,40 @@
-
-import React, { useState } from 'react';
-import { 
-  User, Building2, Bell, Shield, 
-  Globe, CreditCard, Save, RefreshCw, 
+import React, { useState, useEffect } from 'react';
+import {
+  User, Building2, Bell, Shield,
+  Globe, CreditCard, Save, RefreshCw,
   ChevronRight, Camera, Smartphone,
-  Key
+  Key, Loader2, CheckCircle, AlertCircle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import {
+  getProfile,
+  updateProfile,
+  changePassword,
+  type UserProfile,
+  type UserProfileUpdatePayload,
+  type ChangePasswordPayload,
+} from '../services/userProfileService';
 
 const Settings: React.FC = () => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('general');
+
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  const [firstname, setFirstname] = useState('');
+  const [lastname, setLastname] = useState('');
+  const [email, setEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const tabs = [
     { id: 'general', label: t('general'), icon: User },
@@ -20,6 +44,87 @@ const Settings: React.FC = () => {
     { id: 'billing', label: t('billing_plans'), icon: CreditCard },
   ];
 
+  const loadProfile = async () => {
+    setProfileLoading(true);
+    setProfileError(null);
+    try {
+      const data = await getProfile();
+      setProfile(data);
+      setFirstname(data.firstname);
+      setLastname(data.lastname);
+      setEmail(data.email ?? '');
+    } catch (e) {
+      setProfileError(e instanceof Error ? e.message : 'Failed to load profile');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const isProfileDirty =
+    profile &&
+    (firstname !== profile.firstname || lastname !== profile.lastname || email !== (profile.email ?? ''));
+
+  const handleDiscard = () => {
+    if (profile) {
+      setFirstname(profile.firstname);
+      setLastname(profile.lastname);
+      setEmail(profile.email ?? '');
+    }
+    setSaveSuccess(false);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profile || !isProfileDirty) return;
+    setSaving(true);
+    setSaveSuccess(false);
+    setProfileError(null);
+    try {
+      const payload: UserProfileUpdatePayload = {
+        firstname: firstname.trim(),
+        lastname: lastname.trim(),
+        email: email.trim() || null,
+      };
+      await updateProfile(payload);
+      setSaveSuccess(true);
+      await loadProfile();
+    } catch (e) {
+      setProfileError(e instanceof Error ? e.message : 'Failed to save profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(false);
+    if (newPassword !== confirmPassword) {
+      setPasswordError(t('passwords_do_not_match') || 'New password and confirm password do not match');
+      return;
+    }
+    setPasswordSubmitting(true);
+    try {
+      const payload: ChangePasswordPayload = {
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      };
+      await changePassword(payload);
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (e) {
+      setPasswordError(e instanceof Error ? e.message : 'Failed to change password');
+    } finally {
+      setPasswordSubmitting(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -27,17 +132,31 @@ const Settings: React.FC = () => {
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t('account_settings')}</h1>
           <p className="text-sm md:text-base text-slate-500">{t('configure_preferences')}</p>
         </div>
-        <div className="flex space-x-3">
-          <button className="flex-1 sm:flex-none px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs md:text-sm hover:bg-slate-200 transition-all">{t('discard')}</button>
-          <button className="flex-1 sm:flex-none px-4 md:px-6 py-2 bg-orange-500 text-white rounded-xl font-bold text-xs md:text-sm shadow-lg shadow-orange-500/20 flex items-center justify-center space-x-2">
-            <Save className="w-4 h-4" />
-            <span>{t('save_changes')}</span>
-          </button>
-        </div>
+        {activeTab === 'general' && (
+          <div className="flex space-x-3">
+            <button
+              type="button"
+              onClick={handleDiscard}
+              disabled={!isProfileDirty || saving}
+              className="flex-1 sm:flex-none px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs md:text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
+            >
+              {t('discard')}
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveProfile}
+              disabled={!isProfileDirty || saving}
+              className="flex-1 sm:flex-none px-4 md:px-6 py-2 bg-orange-500 text-white rounded-xl font-bold text-xs md:text-sm shadow-lg shadow-orange-500/20 flex items-center justify-center space-x-2 disabled:opacity-50"
+            >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              <Save className="w-4 h-4" />
+              <span>{t('save_changes')}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
-        {/* Sidebar Tabs - Scrollable on mobile/tablet */}
         <aside className="w-full lg:w-64">
           <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 space-x-2 lg:space-x-0 lg:space-y-1 no-scrollbar">
             {tabs.map(tab => (
@@ -45,8 +164,8 @@ const Settings: React.FC = () => {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-xs md:text-sm font-bold transition-all whitespace-nowrap flex-shrink-0 lg:w-full ${
-                  activeTab === tab.id 
-                    ? 'bg-orange-500 text-white shadow-md' 
+                  activeTab === tab.id
+                    ? 'bg-orange-500 text-white shadow-md'
                     : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 border border-transparent hover:border-slate-200'
                 }`}
               >
@@ -57,34 +176,86 @@ const Settings: React.FC = () => {
           </div>
         </aside>
 
-        {/* Content Area */}
         <div className="flex-1 space-y-6">
           {activeTab === 'general' && (
             <div className="space-y-6">
+              {profileError && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-700 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {profileError}
+                </div>
+              )}
+              {saveSuccess && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 text-green-700 text-sm">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  {t('profile_updated') || 'Profile updated successfully.'}
+                </div>
+              )}
               <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <h3 className="text-base md:text-lg font-bold text-slate-900 mb-6">{t('profile_information')}</h3>
-                <div className="flex flex-col sm:flex-row gap-6 md:gap-8 items-start">
-                  <div className="relative group mx-auto sm:mx-0">
-                    <img src="https://picsum.photos/100/100?random=10" className="w-20 h-20 md:w-24 md:h-24 rounded-2xl border-4 border-slate-50 shadow-sm" alt="Avatar" />
-                    <button className="absolute bottom-0 right-0 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50">
-                      <Camera className="w-4 h-4 text-slate-500" />
-                    </button>
+                {profileLoading ? (
+                  <div className="flex items-center gap-2 text-slate-500 py-8">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>{t('loading') || 'Loading...'}</span>
                   </div>
-                  <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('first_name')}</label>
-                      <input type="text" defaultValue="Juan" className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/10 focus:outline-none" />
+                ) : (
+                  <div className="flex flex-col sm:flex-row gap-6 md:gap-8 items-start">
+                    <div className="relative group mx-auto sm:mx-0">
+                      <img
+                        src={
+                          profile?.avatarUrl
+                            ? (profile.avatarUrl.startsWith('http') ? profile.avatarUrl : `${(import.meta as { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL || 'http://localhost:2000'}${profile.avatarUrl}`)
+                            : `https://ui-avatars.com/api/?name=${encodeURIComponent(`${firstname} ${lastname}`.trim() || 'User')}&size=96`
+                        }
+                        className="w-20 h-20 md:w-24 md:h-24 rounded-2xl border-4 border-slate-50 shadow-sm object-cover"
+                        alt="Avatar"
+                      />
+                      <button type="button" className="absolute bottom-0 right-0 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50">
+                        <Camera className="w-4 h-4 text-slate-500" />
+                      </button>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('last_name')}</label>
-                      <input type="text" defaultValue="Luna" className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/10 focus:outline-none" />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('email_address')}</label>
-                      <input type="email" defaultValue="juan.luna@restoadmin.ph" className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/10 focus:outline-none" />
+                    <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">{t('first_name')}</label>
+                        <input
+                          type="text"
+                          value={firstname}
+                          onChange={e => setFirstname(e.target.value)}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/10 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">{t('last_name')}</label>
+                        <input
+                          type="text"
+                          value={lastname}
+                          onChange={e => setLastname(e.target.value)}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/10 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">{t('email_address')}</label>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={e => setEmail(e.target.value)}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/10 focus:outline-none"
+                        />
+                      </div>
+                      {profile?.username && (
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">{t('username') || 'Username'}</label>
+                          <input
+                            type="text"
+                            value={profile.username}
+                            readOnly
+                            className="w-full p-2.5 rounded-xl border border-slate-100 bg-slate-50 text-sm text-slate-500"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -138,27 +309,86 @@ const Settings: React.FC = () => {
               <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <h3 className="text-base md:text-lg font-bold text-slate-900 mb-6">{t('security_settings')}</h3>
                 <div className="space-y-4">
-                   <button className="w-full flex items-center justify-between p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center space-x-3 text-left">
-                        <Smartphone className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">{t('two_factor_auth')}</p>
-                          <p className="text-[11px] text-slate-500">{t('two_factor_desc')}</p>
-                        </div>
+                  <button type="button" className="w-full flex items-center justify-between p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center space-x-3 text-left">
+                      <Smartphone className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{t('two_factor_auth')}</p>
+                        <p className="text-[11px] text-slate-500">{t('two_factor_desc')}</p>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                   </button>
-                   <button className="w-full flex items-center justify-between p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center space-x-3 text-left">
-                        <Key className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">{t('change_password')}</p>
-                          <p className="text-[11px] text-slate-500">{t('change_password_desc')}</p>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                   </button>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </button>
                 </div>
+              </div>
+
+              <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <h3 className="text-base md:text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
+                  <Key className="w-5 h-5 text-slate-500" />
+                  {t('change_password')}
+                </h3>
+                <p className="text-xs text-slate-500 mb-6">{t('change_password_desc')}</p>
+                {passwordError && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-700 text-sm mb-4">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {passwordError}
+                  </div>
+                )}
+                {passwordSuccess && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 text-green-700 text-sm mb-4">
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    {t('password_changed') || 'Password changed successfully.'}
+                  </div>
+                )}
+                <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                      {t('current_password') || 'Current password'}
+                    </label>
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={e => setCurrentPassword(e.target.value)}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/10 focus:outline-none"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                      {t('new_password') || 'New password'}
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/10 focus:outline-none"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                      {t('confirm_password') || 'Confirm new password'}
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/10 focus:outline-none"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={passwordSubmitting || !currentPassword || !newPassword || !confirmPassword}
+                    className="px-4 py-2.5 bg-orange-500 text-white rounded-xl font-bold text-sm hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {passwordSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {t('change_password')}
+                  </button>
+                </form>
               </div>
             </div>
           )}

@@ -15,7 +15,8 @@ import {
   Clock,
   ShieldCheck,
   X,
-  Receipt
+  Receipt,
+  CreditCard
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { BranchOption, AuthUser } from '../types';
@@ -56,6 +57,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     canManageStaff,
     canManageUsers,
     canViewOrders,
+    canViewBilling,
   } = usePermissions(user);
 
   // Define all menu items with their permission requirements
@@ -84,6 +86,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       label: t('orders'), 
       icon: Receipt,
       canAccess: canViewOrders
+    },
+    { 
+      id: 'billing', 
+      label: t('billing'), 
+      icon: CreditCard,
+      canAccess: canViewBilling
     },
     { 
       id: 'inventory', 
