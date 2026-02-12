@@ -305,58 +305,36 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div className="space-y-6">
-      {/* Ultra Premium Header Section */}
-      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 md:p-8 rounded-2xl bg-gradient-to-br from-white via-indigo-50/30 via-purple-50/20 to-pink-50/30 border-2 border-indigo-200/50 shadow-2xl overflow-hidden backdrop-blur-sm">
-        {/* Premium gradient accent bar */}
-        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-500 via-purple-500 via-pink-500 to-rose-500 rounded-t-2xl" />
+    <div className="space-y-8">
+      {/* Luxurious Dashboard Header */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.3)] p-10 border border-purple-500/20">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-40"></div>
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-purple-500/30 to-pink-500/30 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3"></div>
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-tr from-blue-500/20 to-indigo-500/20 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/3"></div>
         
-        {/* Decorative background elements */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-200/20 to-purple-200/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-200/20 to-rose-200/20 rounded-full blur-3xl pointer-events-none"></div>
-        
-        {/* Shine effect */}
-        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
-        
-        <div className="relative z-10">
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-slate-900 via-indigo-900 via-purple-900 to-pink-900 bg-clip-text text-transparent mb-2">
-            {branchName !== 'All Branches' ? `${branchName} ${t('dashboard')}` : t('network_overview')}
-          </h1>
-          <p className="text-sm md:text-base text-slate-600 font-semibold flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full animate-pulse"></div>
-            {currentBranch && currentBranch.BRANCH_NAME
-              ? `Management for: ${currentBranch.ADDRESS || '—'}`
-              : t('chain_wide_insights')}
-          </p>
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-3">
+            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-200 to-pink-200 tracking-tight">
+              {branchName !== 'All Branches' ? `${branchName} ${t('dashboard')}` : t('network_overview')}
+            </h1>
+            <p className="text-purple-100/80 text-base font-semibold tracking-wide">
+              {currentBranch && currentBranch.BRANCH_NAME
+                ? `Management for: ${currentBranch.ADDRESS || '—'}`
+                : t('chain_wide_insights')}
+            </p>
+          </div>
+          {isKimsBrothersDashboard && (
+            <button 
+              onClick={generateAIReport}
+              disabled={loadingAI}
+              className="group relative w-full md:w-auto bg-gradient-to-br from-amber-400 via-orange-500 to-pink-500 text-white px-8 py-3.5 rounded-2xl font-black flex items-center justify-center gap-3 shadow-[0_8px_32px_rgba(251,146,60,0.4)] hover:shadow-[0_12px_48px_rgba(251,146,60,0.6)] hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+              {loadingAI ? <Loader2 className="w-5 h-5 animate-spin relative z-10" /> : <Sparkles className="w-5 h-5 relative z-10" />}
+              <span className="text-sm md:text-base relative z-10">{t('ai_intelligence')}</span>
+            </button>
+          )}
         </div>
-        {(isKimsBrothersDashboard || selectedBranchId === 'all') && (
-          <button 
-            onClick={generateAIReport}
-            disabled={loadingAI}
-            className="group relative bg-gradient-to-r from-indigo-600 via-purple-600 via-pink-600 to-rose-600 text-white px-7 py-4 rounded-xl font-bold flex items-center justify-center space-x-3 shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50 transition-all duration-300 disabled:opacity-50 w-full md:w-auto overflow-hidden transform hover:scale-105"
-          >
-            {/* Animated gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 via-pink-600 to-rose-600 opacity-100 group-hover:opacity-90 transition-opacity"></div>
-            
-            {/* Shine effect */}
-            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-            
-            {/* Glow effect */}
-            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-xl blur opacity-30 group-hover:opacity-50 transition-opacity"></div>
-            
-            <div className="relative flex items-center space-x-3 z-10">
-              {loadingAI ? (
-                <Loader2 className="w-6 h-6 animate-spin drop-shadow-lg" />
-              ) : (
-                <div className="relative">
-                  <div className="absolute inset-0 bg-white/40 rounded-full blur-md animate-pulse"></div>
-                  <Sparkles className="w-6 h-6 relative z-10 drop-shadow-lg" />
-                </div>
-              )}
-              <span className="text-sm md:text-base font-bold tracking-wide">{t('ai_intelligence')}</span>
-            </div>
-          </button>
-        )}
       </div>
 
       {/* Simple 4-card KPI display - Available ONLY for Daraejung branch */}
@@ -526,7 +504,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
                 <div className="bg-gradient-to-br from-white to-slate-50/50 p-5 md:p-6 rounded-xl border-2 border-indigo-100 shadow-lg backdrop-blur-sm">
                   <h4 className="text-xs font-bold text-slate-600 mb-3 uppercase tracking-wider flex items-center gap-2">
-                    <div className="w-1 h-4 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full"></div>
+                    <span className="w-1 h-4 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full block"></span>
                     Executive Summary
                   </h4>
                   <p className="text-slate-700 leading-relaxed text-sm md:text-base font-medium">{aiReport.summary}</p>
@@ -623,13 +601,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 </div>
               </div>
               
-              <div className="relative h-[calc(100%-100px)] z-10">
+              <div className="relative h-80 min-h-[320px] z-10">
                 {branchComparisonLoading || chartLoading ? (
                   <div className="w-full h-full flex items-center justify-center text-slate-400">
                     <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <ResponsiveContainer width="100%" height={320} minWidth={0}>
                     <LineChart data={STATIC_BRANCH_COMPARISON_DATA}>
                       <defs>
                         {/* Branch 1 - Red/Orange gradient */}
