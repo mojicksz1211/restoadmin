@@ -379,36 +379,36 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         ) : stats ? (
           <>
             <StatCard 
-              title="Today's Revenue" 
+              title={t('todays_revenue')} 
               value={`₱${(stats.todaysRevenue || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} 
               icon={DollarSign} 
-              color="bg-blue-500" 
+              color="bg-gradient-to-br from-emerald-500 to-green-600" 
             />
             <StatCard 
-              title="Total Orders" 
+              title={t('total_orders')} 
               value={(stats.totalOrders || 0).toLocaleString()} 
               icon={Receipt} 
-              color="bg-blue-500" 
+              color="bg-gradient-to-br from-blue-600 to-indigo-700" 
             />
             <StatCard 
-              title="Active Tables" 
+              title={t('active_tables')} 
               value={(stats.activeTables || 0).toLocaleString()} 
               icon={Store} 
-              color="bg-blue-500" 
+              color="bg-gradient-to-br from-purple-600 to-pink-600" 
             />
             <StatCard 
-              title="Pending Orders" 
+              title={t('pending_orders')} 
               value={(stats.pendingOrders || 0).toLocaleString()} 
               icon={Info} 
-              color="bg-blue-500" 
+              color="bg-gradient-to-br from-amber-500 to-orange-600" 
             />
           </>
         ) : (
           <>
-            <StatCard title="Today's Revenue" value="₱0.00" icon={DollarSign} color="bg-blue-500" />
-            <StatCard title="Total Orders" value="0" icon={Receipt} color="bg-blue-500" />
-            <StatCard title="Active Tables" value="0" icon={Store} color="bg-blue-500" />
-            <StatCard title="Pending Orders" value="0" icon={Info} color="bg-blue-500" />
+            <StatCard title={t('todays_revenue')} value="₱0.00" icon={DollarSign} color="bg-gradient-to-br from-emerald-500 to-green-600" />
+            <StatCard title={t('total_orders')} value="0" icon={Receipt} color="bg-gradient-to-br from-blue-600 to-indigo-700" />
+            <StatCard title={t('active_tables')} value="0" icon={Store} color="bg-gradient-to-br from-purple-600 to-pink-600" />
+            <StatCard title={t('pending_orders')} value="0" icon={Info} color="bg-gradient-to-br from-amber-500 to-orange-600" />
           </>
         )}
       </div>
@@ -432,11 +432,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             </div>
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-3">
-                Advanced Analytics Not Available
+                {t('advanced_analytics_not_available')}
               </h2>
               <p className="text-sm md:text-base text-slate-600 max-w-md leading-relaxed">
-                Advanced analytics, charts, and detailed reports are currently only available for Kim's Brothers branch. 
-                This branch does not have advanced analytics data at this time.
+                {t('advanced_analytics_not_available_desc')}
               </p>
             </div>
           </div>
@@ -462,36 +461,36 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             ) : stats ? (
               <>
                 <StatCard 
-                  title="Total Revenue" 
+                  title={t('total_revenue')} 
                   value={`₱${(stats.todaysRevenue || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} 
                   icon={DollarSign} 
-                  color="bg-emerald-500" 
+                  color="bg-gradient-to-br from-emerald-500 to-green-600" 
                 />
                 <StatCard 
-                  title="Total Orders" 
+                  title={t('total_orders')} 
                   value={(stats.totalOrders || 0).toLocaleString()} 
                   icon={Receipt} 
-                  color="bg-blue-500" 
+                  color="bg-gradient-to-br from-blue-600 to-indigo-700" 
                 />
                 <StatCard 
-                  title="Active Tables" 
+                  title={t('active_tables')} 
                   value={(stats.activeTables || 0).toLocaleString()} 
                   icon={Store} 
-                  color="bg-amber-500" 
+                  color="bg-gradient-to-br from-purple-600 to-pink-600" 
                 />
                 <StatCard 
-                  title="Pending Orders" 
+                  title={t('pending_orders')} 
                   value={(stats.pendingOrders || 0).toLocaleString()} 
                   icon={Info} 
-                  color="bg-violet-500" 
+                  color="bg-gradient-to-br from-amber-500 to-orange-600" 
                 />
               </>
             ) : (
               <>
-                <StatCard title="Total Revenue" value="₱0.00" icon={DollarSign} color="bg-emerald-500" />
-                <StatCard title="Total Orders" value="0" icon={Receipt} color="bg-blue-500" />
-                <StatCard title="Active Tables" value="0" icon={Store} color="bg-amber-500" />
-                <StatCard title="Pending Orders" value="0" icon={Info} color="bg-violet-500" />
+                <StatCard title={t('total_revenue')} value="₱0.00" icon={DollarSign} color="bg-gradient-to-br from-emerald-500 to-green-600" />
+                <StatCard title={t('total_orders')} value="0" icon={Receipt} color="bg-gradient-to-br from-blue-600 to-indigo-700" />
+                <StatCard title={t('active_tables')} value="0" icon={Store} color="bg-gradient-to-br from-purple-600 to-pink-600" />
+                <StatCard title={t('pending_orders')} value="0" icon={Info} color="bg-gradient-to-br from-amber-500 to-orange-600" />
               </>
             )}
           </div>
@@ -519,9 +518,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   </div>
                   <div>
                     <h3 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-900 bg-clip-text text-transparent">
-                      Gemini Business Consultant
+                      {t('gemini_business_consultant')}
                     </h3>
-                    <p className="text-indigo-600 text-sm font-medium mt-1">AI-Powered Strategic Insights for All Branches</p>
+                    <p className="text-indigo-600 text-sm font-medium mt-1">{t('ai_powered_strategic_insights')}</p>
                   </div>
                 </div>
               </div>
@@ -530,7 +529,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <div className="bg-gradient-to-br from-white to-slate-50/50 p-5 md:p-6 rounded-xl border-2 border-indigo-100 shadow-lg backdrop-blur-sm">
                   <h4 className="text-xs font-bold text-slate-600 mb-3 uppercase tracking-wider flex items-center gap-2">
                     <span className="w-1 h-4 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full block"></span>
-                    Executive Summary
+                    {t('executive_summary')}
                   </h4>
                   <p className="text-slate-700 leading-relaxed text-sm md:text-base font-medium">{aiReport.summary}</p>
                 </div>
@@ -541,7 +540,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       <div className="p-2 bg-emerald-100 rounded-lg">
                         <CheckCircle2 size={20} className="text-emerald-600" />
                       </div>
-                      <h4 className="text-base">Strengths</h4>
+                      <h4 className="text-base">{t('strengths')}</h4>
                     </div>
                     <ul className="space-y-3">
                       {aiReport.strengths.map((item, idx) => (
@@ -558,7 +557,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       <div className="p-2 bg-rose-100 rounded-lg">
                         <AlertCircle size={20} className="text-rose-600" />
                       </div>
-                      <h4 className="text-base">Attention Needed</h4>
+                      <h4 className="text-base">{t('attention_needed')}</h4>
                     </div>
                     <ul className="space-y-3">
                       {aiReport.weaknesses.map((item, idx) => (
@@ -575,7 +574,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       <div className="p-2 bg-amber-100 rounded-lg">
                         <Lightbulb size={20} className="text-amber-600" />
                       </div>
-                      <h4 className="text-base">Recommendations</h4>
+                      <h4 className="text-base">{t('recommendations')}</h4>
                     </div>
                     <ul className="space-y-3">
                       {aiReport.recommendations.map((item, idx) => (
@@ -608,9 +607,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               <div className="relative flex items-center justify-between mb-6 z-10">
                 <div>
                   <h3 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent">
-                    Revenue Comparison
+                    {t('revenue_comparison')}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1 font-medium">Monthly Revenue Trends</p>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">{t('monthly_revenue_trends')}</p>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   {STATIC_BRANCH_NAMES.map((branchName, idx) => {
@@ -732,9 +731,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   </div>
                   <div>
                     <h3 className="text-lg md:text-xl font-bold bg-gradient-to-r from-amber-900 to-orange-900 bg-clip-text text-transparent">
-                      Branch Rankings
+                      {t('branch_rankings')}
                     </h3>
-                    <p className="text-xs text-slate-500 font-medium">By Revenue</p>
+                    <p className="text-xs text-slate-500 font-medium">{t('by_revenue')}</p>
                   </div>
                 </div>
                 
@@ -845,7 +844,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             </div>
             <div>
               <h2 className="text-lg md:text-xl font-bold text-indigo-900">
-                Gemini Business Consultant
+                {t('gemini_business_consultant')}
             </h2>
               <p className="text-xs md:text-sm text-indigo-600 font-medium">
                 AI-Powered Insights for {currentContextName}
@@ -855,7 +854,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
           {/* Executive Summary */}
           <div className="relative bg-white p-4 md:p-5 rounded-xl border border-indigo-200 mb-6 shadow-sm">
-            <h4 className="text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Executive Summary</h4>
+            <h4 className="text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">{t('executive_summary')}</h4>
             <p className="text-sm md:text-base text-slate-700 leading-relaxed">{aiReport.summary}</p>
                     </div>
 
@@ -865,7 +864,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-emerald-600 font-semibold">
                 <CheckCircle2 size={18} />
-                <h4 className="text-sm md:text-base">Strengths</h4>
+                <h4 className="text-sm md:text-base">{t('strengths')}</h4>
                   </div>
               <ul className="space-y-2">
                 {aiReport.strengths.map((item, idx) => (
@@ -880,7 +879,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-rose-600 font-semibold">
                 <AlertCircle size={18} />
-                <h4 className="text-sm md:text-base">Attention Needed</h4>
+                <h4 className="text-sm md:text-base">{t('attention_needed')}</h4>
             </div>
               <ul className="space-y-2">
                 {aiReport.weaknesses.map((item, idx) => (
@@ -895,7 +894,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-amber-600 font-semibold">
                 <Lightbulb size={18} />
-                <h4 className="text-sm md:text-base">Recommendations</h4>
+                <h4 className="text-sm md:text-base">{t('recommendations')}</h4>
               </div>
               <ul className="space-y-2">
                 {aiReport.recommendations.map((item, idx) => (
@@ -1012,7 +1011,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           <div className="absolute inset-0 opacity-[0.02] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
           
           <div className="relative flex items-center justify-between mb-6">
-            <h2 className="text-lg md:text-xl font-bold text-slate-900">Best Seller</h2>
+            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('best_seller')}</h2>
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-lg blur-sm opacity-30" />
               <div className="relative bg-gradient-to-br from-yellow-400 to-amber-500 p-2 rounded-lg shadow-lg">
@@ -1045,7 +1044,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     <div className="truncate flex-1 min-w-0">
                       <p className="text-sm font-bold text-slate-900 truncate mb-0.5">{item.menu_name}</p>
                       <p className="text-[10px] text-slate-500">
-                        <span className="font-medium">Total Sold: </span>
+                        <span className="font-medium">{t('total_sold')}: </span>
                         <span className="text-slate-700">{item.total_sold}</span>
                       </p>
                     </div>
@@ -1296,8 +1295,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             </div>
           </div>
           <div>
-            <h2 className="text-lg md:text-xl font-bold text-slate-900">EXPORT</h2>
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Payment Methods Summary</p>
+            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('export')}</h2>
+            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">{t('payment_methods_summary')}</p>
           </div>
         </div>
 
@@ -1309,16 +1308,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <th className="text-left px-5 md:px-7 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">
                   <div className="flex items-center gap-2">
                     <div className="w-1 h-4 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
-                    <span>Payment Method</span>
+                    <span>{t('payment_method')}</span>
                   </div>
                 </th>
-                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">Payment Transaction</th>
-                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">Payment Amount</th>
-                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">Refund Transaction</th>
-                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">Refund Amount</th>
+                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">{t('payment_transaction')}</th>
+                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">{t('payment_amount')}</th>
+                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">{t('refund_transaction')}</th>
+                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">{t('refund_amount')}</th>
                 <th className="text-right px-5 md:px-7 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">
                   <div className="flex items-center justify-end gap-2">
-                    <span>Net Amount</span>
+                    <span>{t('net_amount')}</span>
                     <div className="w-1 h-4 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
                   </div>
                 </th>
