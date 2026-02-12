@@ -613,14 +613,9 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
                         ? 'Loading tables...'
                         : 'Select a table'}
                     </option>
-                    {(
-                      newOrderTables.some((t) => t.status === 1)
-                        ? newOrderTables.filter((t) => t.status === 1)
-                        : newOrderTables
-                    ).map((t) => (
+                    {newOrderTables.filter((t) => t.status === 1).map((t) => (
                         <option key={t.id} value={t.id}>
-                          Table {t.tableNumber} {t.capacity ? `· ${t.capacity} pax` : ''}{' '}
-                          {newOrderTables.some((x) => x.status === 1) ? '' : t.status === 2 ? '· Occupied' : ''}
+                          Table {t.tableNumber} {t.capacity ? `· ${t.capacity} pax` : ''}
                         </option>
                       ))}
                   </select>
