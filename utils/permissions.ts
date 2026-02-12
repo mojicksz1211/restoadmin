@@ -162,3 +162,10 @@ export function canViewDashboard(userPermissions: number | null | undefined): bo
   if (!userPermissions) return false;
   return userPermissions !== PERMISSION_LEVELS.TABLET_APP;
 }
+
+/**
+ * Check if user can manage restaurant tables (admin or manager)
+ */
+export function canManageTables(userPermissions: number | null | undefined): boolean {
+  return hasPermission(userPermissions, [PERMISSION_LEVELS.ADMIN, PERMISSION_LEVELS.MANAGER]);
+}

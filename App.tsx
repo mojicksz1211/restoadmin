@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Branches from './pages/Branches';
@@ -7,19 +7,22 @@ import Menu from './pages/Menu';
 import Orders from './pages/Orders';
 import Billing from './pages/Billing';
 import Inventory from './pages/Inventory';
+import Tables from './pages/Tables';
 import StaffPage from './pages/Staff';
 import UserManagement from './pages/UserManagement';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { Bell, Search, Info, Globe, ChevronDown, Menu as MenuIcon, X, Zap, User } from 'lucide-react';
+import { Bell, Search, Info, Globe, ChevronDown, Menu as MenuIcon, X, Zap, User, CheckCheck, Trash2, ShoppingBag, Inbox } from 'lucide-react';
 import { MOCK_BRANCHES, MOCK_STAFF } from './constants';
 import { AuthUser, BranchOption } from './types';
 import { checkSession, getMe, getAccessToken, logout } from './services/authService';
 import { getBranchOptions, setCurrentBranch } from './services/branchService';
+import { getNotifications, markAsRead, markAllAsRead, clearAll, type NotificationRecord } from './services/notificationService';
 import { PERMISSION_LEVELS } from './utils/permissions';
 import { useTranslation } from 'react-i18next';
 import { SupportedLocale } from './i18n';
+import { io, type Socket } from 'socket.io-client';
 
 const App: React.FC = () => {
   const { t, i18n } = useTranslation('common');
@@ -32,6 +35,16 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [branchOptions, setBranchOptions] = useState<BranchOption[]>([]);
   const [branchOptionsLoading, setBranchOptionsLoading] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const notificationPanelRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const selectedBranchIdRef = useRef<string>(selectedBranchId);
+  selectedBranchIdRef.current = selectedBranchId;
+
+  const socketBaseUrl = (import.meta as { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL || 'http://localhost:2000';
 
   const lang = (i18n.language?.startsWith('ko') ? 'ko' : 'en') as SupportedLocale;
 
@@ -67,6 +80,12 @@ const App: React.FC = () => {
         return (
           <ProtectedRoute user={authUser} requiredPermissions={[PERMISSION_LEVELS.ADMIN, PERMISSION_LEVELS.MANAGER]}>
             <Menu selectedBranchId={selectedBranchId} />
+          </ProtectedRoute>
+        );
+      case 'tables':
+        return (
+          <ProtectedRoute user={authUser} requiredPermissions={[PERMISSION_LEVELS.ADMIN, PERMISSION_LEVELS.MANAGER]}>
+            <Tables selectedBranchId={selectedBranchId} />
           </ProtectedRoute>
         );
       case 'orders':
@@ -184,6 +203,107 @@ const App: React.FC = () => {
       loadBranchOptions();
     }
   }, [authUser]);
+
+  const loadNotifications = async () => {
+    setNotificationsLoading(true);
+    try {
+      const branchId = selectedBranchId === 'all' ? undefined : selectedBranchId;
+      const { notifications: list, unread_count } = await getNotifications({ limit: 50, branchId });
+      setNotifications(list);
+      setUnreadCount(unread_count);
+    } catch {
+      setNotifications([]);
+      setUnreadCount(0);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authUser) {
+      loadNotifications();
+    }
+  }, [authUser, selectedBranchId]);
+
+  useEffect(() => {
+    if (isNotificationPanelOpen && authUser) {
+      loadNotifications();
+    }
+  }, [isNotificationPanelOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notificationPanelRef.current && !notificationPanelRef.current.contains(e.target as Node)) {
+        setIsNotificationPanelOpen(false);
+      }
+    };
+    if (isNotificationPanelOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isNotificationPanelOpen]);
+
+  // Socket.IO: connect as user and listen for real-time notifications
+  useEffect(() => {
+    if (!authUser?.userId) return;
+    const socket = io(socketBaseUrl, { transports: ['websocket', 'polling'], withCredentials: true });
+    socketRef.current = socket;
+    socket.emit('join_user', authUser.userId);
+    socket.on('notification_new', (payload: { id: number; userId: number; branchId?: number | null; title: string; message: string; type: string; link: string | null; isRead: boolean; createdAt: string }) => {
+      const current = selectedBranchIdRef.current;
+      const show = current === 'all' || String(payload.branchId) === String(current);
+      const record: NotificationRecord = {
+        id: payload.id,
+        userId: payload.userId,
+        branchId: payload.branchId ?? undefined,
+        title: payload.title ?? '',
+        message: payload.message ?? '',
+        type: payload.type ?? 'info',
+        link: payload.link ?? null,
+        isRead: payload.isRead ?? false,
+        createdAt: payload.createdAt ?? new Date().toISOString(),
+      };
+      if (show) {
+        setNotifications(prev => [record, ...prev]);
+        setUnreadCount(prev => prev + 1);
+      }
+    });
+    return () => {
+      socket.off('notification_new');
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [authUser?.userId, socketBaseUrl]);
+
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await markAsRead(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch {
+      // keep UI as is
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch {
+      // keep UI as is
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await clearAll();
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch {
+      // keep UI as is
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -360,11 +480,111 @@ const App: React.FC = () => {
               )}
             </div>
 
-            <div className="relative">
-              <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer">
+            <div className="relative" ref={notificationPanelRef}>
+              <button
+                type="button"
+                onClick={() => setIsNotificationPanelOpen(prev => !prev)}
+                className="relative bg-white p-2 rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
+              >
                 <Bell className="w-5 h-5 text-slate-500" />
-                <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold ring-2 ring-white">3</span>
-              </div>
+                {unreadCount > 0 && (
+                  <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[8px] min-w-[14px] h-3.5 rounded-full flex items-center justify-center font-bold ring-2 ring-white px-0.5">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              {isNotificationPanelOpen && (
+                <div className="absolute top-full right-0 mt-2 w-[360px] max-h-[440px] bg-white border border-slate-200/80 rounded-2xl shadow-2xl shadow-slate-200/50 z-50 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  {/* Header */}
+                  <div className="px-4 py-3.5 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center">
+                        <Bell className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm">{t('notifications')}</h3>
+                        {unreadCount > 0 && (
+                          <p className="text-[10px] font-medium text-orange-600">{unreadCount} {t('unread')}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      {notifications.length > 0 && unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllAsRead}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors flex items-center gap-1"
+                          title={t('mark_all_read')}
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">{t('mark_all_read')}</span>
+                        </button>
+                      )}
+                      {notifications.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearAll}
+                          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-500 transition-colors"
+                          title={t('clear_all')}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {/* List */}
+                  <div className="overflow-y-auto flex-1 min-h-0">
+                    {notificationsLoading ? (
+                      <div className="py-12 flex flex-col items-center justify-center gap-2">
+                        <div className="w-8 h-8 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                        <p className="text-xs text-slate-500">{t('loading')}</p>
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="py-12 flex flex-col items-center justify-center gap-3 px-4">
+                        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                          <Inbox className="w-7 h-7 text-slate-400" />
+                        </div>
+                        <p className="text-sm font-medium text-slate-600">{t('no_notifications')}</p>
+                        <p className="text-xs text-slate-400 text-center">New orders and updates will show here</p>
+                      </div>
+                    ) : (
+                      <ul className="py-2">
+                        {notifications.map((n) => {
+                          const isOrder = (n.type || '').toLowerCase() === 'order';
+                          const Icon = isOrder ? ShoppingBag : Info;
+                          const accentBg = !n.isRead ? 'bg-orange-50' : 'bg-slate-50';
+                          const accentBorder = !n.isRead ? 'border-l-orange-500' : 'border-l-transparent';
+                          return (
+                            <li key={n.id} className="px-3 py-1">
+                              <button
+                                type="button"
+                                onClick={() => !n.isRead && handleMarkAsRead(n.id)}
+                                className={`w-full text-left rounded-xl border-l-4 border-slate-100 ${accentBorder} ${accentBg} hover:bg-slate-50/80 transition-colors p-3`}
+                              >
+                                <div className="flex gap-3">
+                                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isOrder ? 'bg-orange-100 text-orange-600' : 'bg-slate-200 text-slate-600'}`}>
+                                    <Icon className="w-4 h-4" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm font-semibold line-clamp-1 ${!n.isRead ? 'text-slate-900' : 'text-slate-700'}`}>{n.title}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
+                                    <p className="text-[11px] text-slate-400 mt-1.5">
+                                      {n.createdAt ? new Date(n.createdAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' }) : ''}
+                                    </p>
+                                  </div>
+                                  {!n.isRead && (
+                                    <span className="flex-shrink-0 w-2 h-2 rounded-full bg-orange-500 mt-1.5" aria-hidden />
+                                  )}
+                                </div>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="flex items-center space-x-2 ml-1">

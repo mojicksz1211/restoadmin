@@ -70,6 +70,20 @@ const mapTableRecord = (row: TableApiRecord): RestaurantTableRecord => ({
   status: Number(row.STATUS ?? 0),
 });
 
+/** Table status: 1 = Available, 2 = Occupied (matches backend) */
+export const TABLE_STATUS = {
+  AVAILABLE: 1,
+  OCCUPIED: 2,
+} as const;
+
+export function getTableStatusLabel(status: number): string {
+  switch (status) {
+    case TABLE_STATUS.AVAILABLE: return 'Available';
+    case TABLE_STATUS.OCCUPIED: return 'Occupied';
+    default: return `Status ${status}`;
+  }
+}
+
 export async function getRestaurantTables(branchId?: string): Promise<RestaurantTableRecord[]> {
   const params: Record<string, string> = {};
   if (branchId && branchId !== 'all') {
@@ -81,5 +95,101 @@ export async function getRestaurantTables(branchId?: string): Promise<Restaurant
   });
   const data = await handleResponse<TableApiRecord[]>(response);
   return Array.isArray(data) ? data.map(mapTableRecord) : [];
+}
+
+export type CreateTablePayload = {
+  BRANCH_ID: string;
+  TABLE_NUMBER: string;
+  CAPACITY?: number;
+  STATUS?: number;
+};
+
+export type UpdateTablePayload = {
+  TABLE_NUMBER: string;
+  CAPACITY?: number;
+  STATUS?: number;
+};
+
+export async function createTable(payload: CreateTablePayload): Promise<number> {
+  const response = await fetch(buildUrl('/restaurant_table'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({
+      BRANCH_ID: payload.BRANCH_ID,
+      TABLE_NUMBER: payload.TABLE_NUMBER.trim(),
+      CAPACITY: payload.CAPACITY ?? 0,
+      STATUS: payload.STATUS ?? TABLE_STATUS.AVAILABLE,
+    }),
+  });
+  const data = await handleResponse<{ id: number }>(response);
+  return data?.id ?? 0;
+}
+
+export async function updateTable(id: string, payload: UpdateTablePayload): Promise<void> {
+  const response = await fetch(buildUrl(`/restaurant_table/${id}`), {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({
+      TABLE_NUMBER: payload.TABLE_NUMBER.trim(),
+      CAPACITY: payload.CAPACITY ?? 0,
+      STATUS: payload.STATUS ?? TABLE_STATUS.AVAILABLE,
+    }),
+  });
+  await handleResponse(response);
+}
+
+export async function deleteTable(id: string): Promise<void> {
+  const response = await fetch(buildUrl(`/restaurant_table/${id}`), {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+  await handleResponse(response);
+}
+
+export async function updateTableStatus(id: string, status: number): Promise<void> {
+  const response = await fetch(buildUrl(`/restaurant_table/${id}/status`), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ status }),
+  });
+  await handleResponse(response);
+}
+
+export type TableTransactionRecord = {
+  orderId?: number;
+  orderNo?: string;
+  tableId?: number;
+  tableNumber?: string;
+  amount?: number;
+  status?: number;
+  encodedDt?: string;
+  [key: string]: unknown;
+};
+
+export async function getTableTransactionHistory(tableId: string, branchId?: string): Promise<TableTransactionRecord[]> {
+  const params: Record<string, string> = {};
+  if (branchId && branchId !== 'all') params.branch_id = branchId;
+  const response = await fetch(buildUrl(`/restaurant_table/${tableId}/transactions`, params), {
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+  const data = await handleResponse<TableTransactionRecord[]>(response);
+  return Array.isArray(data) ? data : [];
 }
 

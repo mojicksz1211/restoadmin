@@ -14,6 +14,7 @@ import {
   canViewKitchenOrders,
   canViewBilling,
   canViewDashboard,
+  canManageTables,
   getPermissionName,
   PERMISSION_LEVELS,
 } from '../utils/permissions';
@@ -51,6 +52,7 @@ export function usePermissions(user: AuthUser | null) {
     canViewKitchenOrders: canViewKitchenOrders(userPermissions),
     canViewBilling: canViewBilling(userPermissions),
     canViewDashboard: canViewDashboard(userPermissions),
+    canManageTables: canManageTables(userPermissions),
     
     // Constants
     PERMISSION_LEVELS,
