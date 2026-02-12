@@ -213,7 +213,7 @@ export function revenueReportToChartData(
   if (!report || report.length === 0) {
     // If no real data, return static Mon-Wed + empty Thu-Sun
     return [
-      ...STATIC_MON_WED_DATA,
+      ...result,
       { name: 'Thu', sales: 0, expenses: 0 },
       { name: 'Fri', sales: 0, expenses: 0 },
       { name: 'Sat', sales: 0, expenses: 0 },
