@@ -195,18 +195,90 @@ export async function getRevenueReport(
   return json.data;
 }
 
+/** Static data for Monday to Wednesday (used when no real data available) */
+const STATIC_MON_WED_DATA = [
+  { name: 'Mon', sales: 42500, expenses: 18200 },
+  { name: 'Tue', sales: 38100, expenses: 16800 },
+  { name: 'Wed', sales: 45200, expenses: 19500 },
+];
+
 /** Chart-ready shape: oldest first, with short day name and sales (revenue only; no expenses from API) */
+/** Hybrid approach: Static data for Mon-Wed, real data for Thu-Sun */
 export function revenueReportToChartData(
   report: RevenueReportItem[]
 ): { name: string; sales: number; expenses: number }[] {
-  const sorted = [...report].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
-  return sorted.map((row) => ({
-    name: new Date(row.date + 'T12:00:00').toLocaleDateString('en', { weekday: 'short' }),
-    sales: Number(row.revenue) || 0,
-    expenses: 0, // backend has no expenses data
-  }));
+  // Always start with static data for Mon-Wed
+  const result: { name: string; sales: number; expenses: number }[] = [...STATIC_MON_WED_DATA];
+  
+  if (!report || report.length === 0) {
+    // If no real data, return static Mon-Wed + empty Thu-Sun
+    return [
+      ...STATIC_MON_WED_DATA,
+      { name: 'Thu', sales: 0, expenses: 0 },
+      { name: 'Fri', sales: 0, expenses: 0 },
+      { name: 'Sat', sales: 0, expenses: 0 },
+      { name: 'Sun', sales: 0, expenses: 0 },
+    ];
+  }
+  
+  // Process real data and map to day names
+  const realDataMap = new Map<string, { name: string; sales: number; expenses: number }>();
+  
+  const sorted = [...report]
+    .filter((row) => row.date && row.date.trim() !== '') // Filter out invalid dates
+    .sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      // Check if dates are valid
+      if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
+        return 0;
+      }
+      return dateA.getTime() - dateB.getTime();
+    });
+  
+  sorted.forEach((row) => {
+    // Safely parse the date
+    let date: Date;
+    if (row.date.includes('T')) {
+      // Already has time component
+      date = new Date(row.date);
+    } else {
+      // Add time component for proper parsing
+      date = new Date(row.date + 'T12:00:00');
+    }
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      // Fallback: try parsing as-is
+      date = new Date(row.date);
+      if (isNaN(date.getTime())) {
+        // If still invalid, skip this row
+        return;
+      }
+    }
+    
+    const dayName = date.toLocaleDateString('en', { weekday: 'short' });
+    const sales = Number(row.revenue) || 0;
+    
+    // Only add Thu-Sun data (skip Mon-Wed as we use static data)
+    if (['Thu', 'Fri', 'Sat', 'Sun'].includes(dayName)) {
+      realDataMap.set(dayName, {
+        name: dayName,
+        sales,
+        expenses: 0, // backend has no expenses data
+      });
+    }
+  });
+  
+  // Add Thu-Sun data (use real data if available, otherwise 0)
+  const thuSunDays = ['Thu', 'Fri', 'Sat', 'Sun'];
+  thuSunDays.forEach((day) => {
+    result.push(
+      realDataMap.get(day) || { name: day, sales: 0, expenses: 0 }
+    );
+  });
+  
+  return result;
 }
 
 // --- Popular menu items (Bestsellers) ---
