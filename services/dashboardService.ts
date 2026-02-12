@@ -50,12 +50,10 @@ type ApiResponse<T> = {
   error?: string;
 };
 
-const API_BASE_URL =
-  (import.meta as { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL
-  || 'http://localhost:2000';
+import { getApiBaseUrl } from '../utils/apiConfig';
 
 const buildUrl = (path: string, params?: Record<string, string>) => {
-  const base = API_BASE_URL.replace(/\/$/, '');
+  const base = getApiBaseUrl().replace(/\/$/, '');
   const url = new URL(`${base}${path}`);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -335,4 +333,53 @@ export async function getPopularMenuItems(
     throw new Error(json.error || 'Failed to load popular items');
   }
   return json.data;
+}
+
+// --- Bestseller by AM/PM period ---
+
+export type BestsellerByPeriod = {
+  period: string;
+  menu_name: string;
+  total_sold: number;
+};
+
+/** Sample data for Best Seller ng AM and PM when API returns empty */
+export const SAMPLE_BESTSELLER_BY_PERIOD: BestsellerByPeriod[] = [
+  {
+    period: 'AM',
+    menu_name: '갈비찜 (Galbijjim)',
+    total_sold: 12
+  },
+  {
+    period: 'PM',
+    menu_name: 'LA 갈비 (LA Galbi)',
+    total_sold: 18
+  }
+];
+
+type BestsellerByPeriodResponse = {
+  bestsellers: BestsellerByPeriod[];
+};
+
+/**
+ * Fetch bestseller items by AM/PM period for Dashboard widget.
+ * @param branchId - 'all' or specific branch ID
+ */
+export async function getBestsellerByPeriod(
+  branchId: string | null
+): Promise<BestsellerByPeriod[]> {
+  const params: Record<string, string> = {};
+  if (branchId && branchId !== 'all') {
+    params.branch_id = branchId;
+  }
+
+  const response = await fetch(buildUrl('/dashboard/bestseller', params), {
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+  const json = (await response.json()) as ApiResponse<BestsellerByPeriodResponse>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to load bestseller by period');
+  }
+  return json.data.bestsellers;
 }

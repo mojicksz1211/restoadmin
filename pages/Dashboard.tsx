@@ -20,12 +20,15 @@ import {
   revenueReportToChartData,
   getPopularMenuItems,
   getDashboardKpis,
+  getBestsellerByPeriod,
   SAMPLE_POPULAR_MENU_ITEMS,
   SAMPLE_PAYMENT_METHOD_EXPORT,
+  SAMPLE_BESTSELLER_BY_PERIOD,
   type PaymentMethodExportRow,
   type DashboardStats,
   type DashboardKpis,
   type PopularMenuItem,
+  type BestsellerByPeriod,
 } from '../services/dashboardService';
 import { getBranches } from '../services/branchService';
 
@@ -53,6 +56,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [popularMenuItemsLoading, setPopularMenuItemsLoading] = useState(true);
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
+  const [bestsellersByPeriod, setBestsellersByPeriod] = useState<BestsellerByPeriod[]>([]);
+  const [bestsellersLoading, setBestsellersLoading] = useState(true);
 
   const [isKimsBrothersDashboard, setIsKimsBrothersDashboard] = useState<boolean>(false);
   const [isDaraejungBranch, setIsDaraejungBranch] = useState<boolean>(false);
@@ -193,6 +198,26 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   useEffect(() => {
     loadPopularMenuItems();
   }, [loadPopularMenuItems]);
+
+  const loadBestsellersByPeriod = useCallback(async () => {
+    setBestsellersLoading(true);
+    try {
+      const data = await getBestsellerByPeriod(selectedBranchId);
+      // Use sample data if API returns empty array
+      setBestsellersByPeriod(data.length > 0 ? data : SAMPLE_BESTSELLER_BY_PERIOD);
+    } catch {
+      // Use sample data on error
+      setBestsellersByPeriod(SAMPLE_BESTSELLER_BY_PERIOD);
+    } finally {
+      setBestsellersLoading(false);
+    }
+  }, [selectedBranchId]);
+
+  useEffect(() => {
+    if (isKimsBrothersDashboard) {
+      loadBestsellersByPeriod();
+    }
+  }, [loadBestsellersByPeriod, isKimsBrothersDashboard]);
 
   useEffect(() => {
     setAiReport(null);
@@ -978,7 +1003,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           </div>
         </div>
 
-        {/* Top Performing Branches (real data) */}
+        {/* Best Seller ng AM and PM */}
         <div className="group relative bg-white p-4 md:p-6 rounded-2xl shadow-lg border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
           {/* Premium gradient accent bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600" />
@@ -987,7 +1012,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           <div className="absolute inset-0 opacity-[0.02] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
           
           <div className="relative flex items-center justify-between mb-6">
-            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('top_performing')}</h2>
+            <h2 className="text-lg md:text-xl font-bold text-slate-900">Best Seller</h2>
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-lg blur-sm opacity-30" />
               <div className="relative bg-gradient-to-br from-yellow-400 to-amber-500 p-2 rounded-lg shadow-lg">
@@ -996,41 +1021,61 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             </div>
           </div>
           <div className="relative space-y-3">
-            {topBranchesData.map((branch, index) => (
-              <div key={branch.id} className="group/item relative flex items-center justify-between p-3.5 rounded-xl bg-gradient-to-r from-white to-slate-50/50 hover:from-slate-50 hover:to-emerald-50/30 transition-all duration-300 border border-slate-100 hover:border-emerald-200 hover:shadow-md">
-                <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <div className={`relative flex-shrink-0 ${
-                    index === 0 ? 'w-9 h-9 bg-gradient-to-br from-yellow-400 to-amber-500 text-white shadow-lg' : 
-                    index === 1 ? 'w-9 h-9 bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-md' :
-                    index === 2 ? 'w-9 h-9 bg-gradient-to-br from-orange-400 to-amber-500 text-white shadow-md' : 
-                    'w-9 h-9 bg-gradient-to-br from-slate-200 to-slate-300 text-slate-600'
-                  } rounded-full flex items-center justify-center font-bold text-xs`}>
-                    {index === 0 && (
-                      <div className="absolute inset-0 bg-gradient-to-br from-yellow-300 to-amber-400 rounded-full blur-sm opacity-50" />
-                    )}
-                    <span className="relative z-10">{index + 1}</span>
-                  </div>
-                  <div className="truncate flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-900 truncate mb-0.5">{branch.name}</p>
-                    <p className="text-[10px] text-slate-500 flex items-center">
-                      <MapPin className="w-2.5 h-2.5 mr-1 text-slate-400" />
-                      <span className="truncate">{(branch.address ?? '').split(',')[0] || '—'}</span>
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0 ml-3">
-                  <div className="px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
-                    <p className="text-sm font-bold text-emerald-700 tabular-nums">₱{(branch.revenue / 1000).toFixed(1)}k</p>
-                    <p className="text-[9px] text-emerald-600 font-medium">{t('revenue')}</p>
-                  </div>
-                </div>
+            {bestsellersLoading ? (
+              <div className="flex items-center justify-center py-8 text-slate-400">
+                <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
               </div>
-            ))}
+            ) : (
+              bestsellersByPeriod.map((item, index) => (
+                <div key={`${item.period}-${index}`} className="group/item relative flex items-center justify-between p-3.5 rounded-xl bg-gradient-to-r from-white to-slate-50/50 hover:from-slate-50 hover:to-emerald-50/30 transition-all duration-300 border border-slate-100 hover:border-emerald-200 hover:shadow-md">
+                  <div className="flex items-center space-x-3 flex-1 min-w-0">
+                    <div className={`relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs ${
+                      item.period === 'AM' 
+                        ? 'bg-gradient-to-br from-blue-400 to-indigo-500 text-white shadow-lg' 
+                        : 'bg-gradient-to-br from-orange-400 to-amber-500 text-white shadow-lg'
+                    }`}>
+                      {item.period === 'AM' && (
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-300 to-indigo-400 rounded-full blur-sm opacity-50" />
+                      )}
+                      {item.period === 'PM' && (
+                        <div className="absolute inset-0 bg-gradient-to-br from-orange-300 to-amber-400 rounded-full blur-sm opacity-50" />
+                      )}
+                      <span className="relative z-10">{item.period}</span>
+                    </div>
+                    <div className="truncate flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate mb-0.5">{item.menu_name}</p>
+                      <p className="text-[10px] text-slate-500">
+                        <span className="font-medium">Total Sold: </span>
+                        <span className="text-slate-700">{item.total_sold}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <div className={`px-2.5 py-1 rounded-lg border ${
+                      item.period === 'AM' 
+                        ? 'bg-blue-50 border-blue-100' 
+                        : 'bg-orange-50 border-orange-100'
+                    }`}>
+                      <p className={`text-sm font-bold tabular-nums ${
+                        item.period === 'AM' 
+                          ? 'text-blue-700' 
+                          : 'text-orange-700'
+                      }`}>
+                        {item.total_sold}
+                      </p>
+                      <p className={`text-[9px] font-medium ${
+                        item.period === 'AM' 
+                          ? 'text-blue-600' 
+                          : 'text-orange-600'
+                      }`}>
+                        orders
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-          <button className="relative w-full mt-5 py-3 text-[10px] font-bold text-slate-600 hover:text-orange-600 transition-colors border-t border-slate-100 hover:border-orange-200 uppercase tracking-wider group/btn">
-            <span className="relative z-10">{t('view_all_rank')}</span>
-            <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-orange-400 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity" />
-          </button>
           
           {/* Shine effect on hover */}
           <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />

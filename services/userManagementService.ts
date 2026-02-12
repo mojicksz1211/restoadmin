@@ -29,14 +29,9 @@ type RoleApiItem = {
   permissions: string[];
 };
 
-const API_BASE_URL =
-  (import.meta as { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL
-  || 'http://localhost:2000';
+import { buildApiUrl } from '../utils/apiConfig';
 
-const buildUrl = (path: string) => {
-  const base = API_BASE_URL.replace(/\/$/, '');
-  return `${base}${path}`;
-};
+const buildUrl = (path: string) => buildApiUrl(path);
 
 const authHeaders = (): Record<string, string> => {
   const token = getAccessToken();

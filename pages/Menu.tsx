@@ -5,6 +5,7 @@ import { MOCK_BRANCHES } from '../constants';
 import { MenuCategory, MenuRecord, BranchRecord } from '../types';
 import { getMenuCategories, getMenus, createMenu, updateMenu, deleteMenu } from '../services/menuService';
 import { translateText, i18nToTranslateTarget } from '../services/translateService';
+import { getApiBaseUrl } from '../utils/apiConfig';
 
 interface MenuProps {
   selectedBranchId: string;
@@ -209,10 +210,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   const resolveImageUrl = (imageUrl: string | null) => {
     if (!imageUrl) return null;
     if (imageUrl.startsWith('http')) return imageUrl;
-    const base = (
-      (import.meta as { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL
-      || 'http://localhost:2000'
-    ).replace(/\/$/, '');
+    const base = getApiBaseUrl().replace(/\/$/, '');
     return `${base}${imageUrl}`;
   };
 

@@ -71,12 +71,10 @@ type ApiResponse<T> = {
   error?: string;
 };
 
-const API_BASE_URL =
-  (import.meta as { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL
-  || 'http://localhost:2000';
+import { getApiBaseUrl } from '../utils/apiConfig';
 
 const buildUrl = (path: string, params?: Record<string, string>) => {
-  const base = API_BASE_URL.replace(/\/$/, '');
+  const base = getApiBaseUrl().replace(/\/$/, '');
   const url = new URL(`${base}${path}`);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {

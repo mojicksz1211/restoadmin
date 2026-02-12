@@ -14,6 +14,7 @@ import {
   type UserProfileUpdatePayload,
   type ChangePasswordPayload,
 } from '../services/userProfileService';
+import { getApiBaseUrl } from '../utils/apiConfig';
 
 const Settings: React.FC = () => {
   const { t } = useTranslation();
@@ -204,7 +205,7 @@ const Settings: React.FC = () => {
                       <img
                         src={
                           profile?.avatarUrl
-                            ? (profile.avatarUrl.startsWith('http') ? profile.avatarUrl : `${(import.meta as { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL || 'http://localhost:2000'}${profile.avatarUrl}`)
+                            ? (profile.avatarUrl.startsWith('http') ? profile.avatarUrl : `${getApiBaseUrl()}${profile.avatarUrl}`)
                             : `https://ui-avatars.com/api/?name=${encodeURIComponent(`${firstname} ${lastname}`.trim() || 'User')}&size=96`
                         }
                         className="w-20 h-20 md:w-24 md:h-24 rounded-2xl border-4 border-slate-50 shadow-sm object-cover"
