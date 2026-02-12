@@ -407,7 +407,7 @@ export async function getPopularMenuItems(
   return json.data;
 }
 
-// --- Bestseller by AM/PM period ---
+// --- Bestseller by Meal Period (Breakfast, Lunch, Dinner) ---
 
 export type BestsellerByPeriod = {
   period: string;
@@ -415,26 +415,12 @@ export type BestsellerByPeriod = {
   total_sold: number;
 };
 
-/** Sample data for Best Seller ng AM and PM when API returns empty */
-export const SAMPLE_BESTSELLER_BY_PERIOD: BestsellerByPeriod[] = [
-  {
-    period: 'AM',
-    menu_name: '갈비찜 (Galbijjim)',
-    total_sold: 12
-  },
-  {
-    period: 'PM',
-    menu_name: 'LA 갈비 (LA Galbi)',
-    total_sold: 18
-  }
-];
-
 type BestsellerByPeriodResponse = {
   bestsellers: BestsellerByPeriod[];
 };
 
 /**
- * Fetch bestseller items by AM/PM period for Dashboard widget.
+ * Fetch bestseller items by meal period (Breakfast, Lunch, Dinner) for Dashboard widget.
  * @param branchId - 'all' or specific branch ID
  */
 export async function getBestsellerByPeriod(

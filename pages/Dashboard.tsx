@@ -9,7 +9,8 @@ import {
   TrendingUp, ArrowDownRight, 
   Info, Trophy, MapPin, RefreshCw,
   Tag, Receipt, CircleDollarSign,
-  CheckCircle2, AlertCircle, Lightbulb
+  CheckCircle2, AlertCircle, Lightbulb,
+  Coffee, UtensilsCrossed, ChefHat
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { MOCK_BRANCHES, SALES_CHART_DATA } from '../constants';
@@ -23,7 +24,6 @@ import {
   getBestsellerByPeriod,
   SAMPLE_POPULAR_MENU_ITEMS,
   SAMPLE_PAYMENT_METHOD_EXPORT,
-  SAMPLE_BESTSELLER_BY_PERIOD,
   type PaymentMethodExportRow,
   type DashboardStats,
   type DashboardKpis,
@@ -203,11 +203,25 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setBestsellersLoading(true);
     try {
       const data = await getBestsellerByPeriod(selectedBranchId);
-      // Use sample data if API returns empty array
-      setBestsellersByPeriod(data.length > 0 ? data : SAMPLE_BESTSELLER_BY_PERIOD);
+      const periods = ['Breakfast', 'Lunch', 'Dinner'];
+      const defaultPeriods = periods.map(period => ({
+        period,
+        menu_name: 'No orders yet',
+        total_sold: 0
+      }));
+      
+      const result = periods.map(period => 
+        data.find(item => item.period === period) || 
+        defaultPeriods.find(p => p.period === period)!
+      );
+      
+      setBestsellersByPeriod(result);
     } catch {
-      // Use sample data on error
-      setBestsellersByPeriod(SAMPLE_BESTSELLER_BY_PERIOD);
+      setBestsellersByPeriod([
+        { period: 'Breakfast', menu_name: 'No orders yet', total_sold: 0 },
+        { period: 'Lunch', menu_name: 'No orders yet', total_sold: 0 },
+        { period: 'Dinner', menu_name: 'No orders yet', total_sold: 0 }
+      ]);
     } finally {
       setBestsellersLoading(false);
     }
@@ -1002,7 +1016,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           </div>
         </div>
 
-        {/* Best Seller ng AM and PM */}
+        {/* Best Seller by Meal Period (Breakfast, Lunch, Dinner) */}
         <div className="group relative bg-white p-4 md:p-6 rounded-2xl shadow-lg border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
           {/* Premium gradient accent bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600" />
@@ -1025,54 +1039,73 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
               </div>
             ) : (
-              bestsellersByPeriod.map((item, index) => (
-                <div key={`${item.period}-${index}`} className="group/item relative flex items-center justify-between p-3.5 rounded-xl bg-gradient-to-r from-white to-slate-50/50 hover:from-slate-50 hover:to-emerald-50/30 transition-all duration-300 border border-slate-100 hover:border-emerald-200 hover:shadow-md">
-                  <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    <div className={`relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs ${
-                      item.period === 'AM' 
-                        ? 'bg-gradient-to-br from-blue-400 to-indigo-500 text-white shadow-lg' 
-                        : 'bg-gradient-to-br from-orange-400 to-amber-500 text-white shadow-lg'
-                    }`}>
-                      {item.period === 'AM' && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-300 to-indigo-400 rounded-full blur-sm opacity-50" />
-                      )}
-                      {item.period === 'PM' && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-orange-300 to-amber-400 rounded-full blur-sm opacity-50" />
-                      )}
-                      <span className="relative z-10">{item.period}</span>
+              bestsellersByPeriod.map((item, index) => {
+                const periodStyles = {
+                  Breakfast: {
+                    badge: 'bg-gradient-to-br from-blue-400 via-indigo-500 to-blue-600',
+                    glow: 'from-blue-300 to-indigo-400',
+                    bg: 'bg-blue-50 border-blue-200',
+                    text: 'text-blue-700',
+                    textLight: 'text-blue-600',
+                    border: 'border-blue-300',
+                    Icon: Coffee
+                  },
+                  Lunch: {
+                    badge: 'bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-600',
+                    glow: 'from-emerald-300 to-teal-400',
+                    bg: 'bg-emerald-50 border-emerald-200',
+                    text: 'text-emerald-700',
+                    textLight: 'text-emerald-600',
+                    border: 'border-emerald-300',
+                    Icon: UtensilsCrossed
+                  },
+                  Dinner: {
+                    badge: 'bg-gradient-to-br from-orange-400 via-amber-500 to-orange-600',
+                    glow: 'from-orange-300 to-amber-400',
+                    bg: 'bg-orange-50 border-orange-200',
+                    text: 'text-orange-700',
+                    textLight: 'text-orange-600',
+                    border: 'border-orange-300',
+                    Icon: ChefHat
+                  }
+                };
+                const styles = periodStyles[item.period as keyof typeof periodStyles] || periodStyles.Breakfast;
+                const IconComponent = styles.Icon;
+                return (
+                  <div key={`${item.period}-${index}`} className="group/item relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl bg-gradient-to-r from-white via-slate-50/30 to-white hover:from-slate-50 hover:via-emerald-50/40 hover:to-slate-50 transition-all duration-300 border-2 border-slate-200 hover:border-emerald-300 hover:shadow-lg">
+                    {/* Period Badge - Now more prominent */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className={`relative flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center ${styles.badge} shadow-xl border-2 ${styles.border} group-hover/item:scale-105 transition-transform duration-300`}>
+                        <div className={`absolute inset-0 bg-gradient-to-br ${styles.glow} rounded-xl blur-md opacity-40`} />
+                        <IconComponent className="relative z-10 w-6 h-6 text-white drop-shadow-lg" strokeWidth={2.5} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs font-black uppercase tracking-wider ${styles.text}`}>
+                            {item.period}
+                          </span>
+                        </div>
+                        <p className="text-sm font-bold text-slate-900 truncate">{item.menu_name}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          <span className="font-semibold">{t('total_sold')}: </span>
+                          <span className="text-slate-700 font-bold">{item.total_sold}</span>
+                        </p>
+                      </div>
                     </div>
-                    <div className="truncate flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate mb-0.5">{item.menu_name}</p>
-                      <p className="text-[10px] text-slate-500">
-                        <span className="font-medium">{t('total_sold')}: </span>
-                        <span className="text-slate-700">{item.total_sold}</span>
-                      </p>
+                    {/* Orders Badge */}
+                    <div className="flex-shrink-0 sm:text-right">
+                      <div className={`px-3 py-2 rounded-lg border-2 ${styles.bg} ${styles.border} shadow-sm`}>
+                        <p className={`text-base font-black tabular-nums ${styles.text}`}>
+                          {item.total_sold}
+                        </p>
+                        <p className={`text-[10px] font-bold uppercase tracking-wide ${styles.textLight}`}>
+                          orders
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0 ml-3">
-                    <div className={`px-2.5 py-1 rounded-lg border ${
-                      item.period === 'AM' 
-                        ? 'bg-blue-50 border-blue-100' 
-                        : 'bg-orange-50 border-orange-100'
-                    }`}>
-                      <p className={`text-sm font-bold tabular-nums ${
-                        item.period === 'AM' 
-                          ? 'text-blue-700' 
-                          : 'text-orange-700'
-                      }`}>
-                        {item.total_sold}
-                      </p>
-                      <p className={`text-[9px] font-medium ${
-                        item.period === 'AM' 
-                          ? 'text-blue-600' 
-                          : 'text-orange-600'
-                      }`}>
-                        orders
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
           
