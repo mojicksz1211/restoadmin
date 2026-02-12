@@ -2,17 +2,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { 
   DollarSign, Store, Sparkles, Loader2, 
   TrendingUp, ArrowDownRight, 
   Info, Trophy, MapPin, RefreshCw,
-  Tag, Receipt, CircleDollarSign
+  Tag, Receipt, CircleDollarSign,
+  CheckCircle2, AlertCircle, Lightbulb
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { MOCK_BRANCHES, SALES_CHART_DATA } from '../constants';
-import { getAIInsights } from '../services/geminiService';
+import { getAIInsights, type AIAnalysisResult } from '../services/geminiService';
 import {
   getDashboardStats,
   getRevenueReport,
@@ -34,7 +35,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const { t } = useTranslation('common');
-  const [aiReport, setAiReport] = useState<any>(null);
+  const [aiReport, setAiReport] = useState<AIAnalysisResult | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -44,6 +45,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
   const [topBranchesData, setTopBranchesData] = useState<{ id: string; name: string; address: string | null; revenue: number }[]>([]);
+  const [branchComparisonData, setBranchComparisonData] = useState<{ name: string; [key: string]: string | number }[]>([]);
+  const [branchComparisonLoading, setBranchComparisonLoading] = useState(true);
+  const [comparisonBranchNames, setComparisonBranchNames] = useState<string[]>([]);
   const [topBranchesLoading, setTopBranchesLoading] = useState(true);
   const [popularMenuItems, setPopularMenuItems] = useState<PopularMenuItem[]>([]);
   const [popularMenuItemsLoading, setPopularMenuItemsLoading] = useState(true);
@@ -140,6 +144,32 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     }
   }, []);
 
+  // Static sample data for 3 branches - Monthly format (Jan-Jun)
+  const STATIC_BRANCH_COMPARISON_DATA = [
+    { name: 'Jan', 'BLUEMOON': 85000, 'DARAEJUNG': 65000, "KIMS BROTHER": 45000 },
+    { name: 'Feb', 'BLUEMOON': 95000, 'DARAEJUNG': 72000, "KIMS BROTHER": 48000 },
+    { name: 'Mar', 'BLUEMOON': 105000, 'DARAEJUNG': 80000, "KIMS BROTHER": 52000 },
+    { name: 'Apr', 'BLUEMOON': 98000, 'DARAEJUNG': 75000, "KIMS BROTHER": 50000 },
+    { name: 'May', 'BLUEMOON': 110000, 'DARAEJUNG': 90000, "KIMS BROTHER": 58000 },
+    { name: 'Jun', 'BLUEMOON': 70000, 'DARAEJUNG': 65000, "KIMS BROTHER": 55000 },
+  ];
+
+  const STATIC_BRANCH_NAMES = ['BLUEMOON', 'DARAEJUNG', "KIMS BROTHER"];
+
+  const loadBranchComparison = useCallback(async () => {
+    if (selectedBranchId !== 'all') {
+      setBranchComparisonData([]);
+      setComparisonBranchNames([]);
+      setBranchComparisonLoading(false);
+      return;
+    }
+    
+    // Set static data immediately for instant display
+    setBranchComparisonData(STATIC_BRANCH_COMPARISON_DATA);
+    setComparisonBranchNames(STATIC_BRANCH_NAMES);
+    setBranchComparisonLoading(false);
+  }, [selectedBranchId]);
+
   const loadPopularMenuItems = useCallback(async () => {
     setPopularMenuItemsLoading(true);
     try {
@@ -155,6 +185,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   useEffect(() => {
     loadTopBranches();
   }, [loadTopBranches]);
+
+  useEffect(() => {
+    loadBranchComparison();
+  }, [loadBranchComparison]);
 
   useEffect(() => {
     loadPopularMenuItems();
@@ -272,39 +306,54 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   return (
     <div className="space-y-6">
-      {/* Premium Header Section */}
-      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-br from-white via-slate-50/50 to-white border border-slate-200 shadow-lg">
-        {/* Decorative gradient accent */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-t-2xl" />
+      {/* Ultra Premium Header Section */}
+      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 md:p-8 rounded-2xl bg-gradient-to-br from-white via-indigo-50/30 via-purple-50/20 to-pink-50/30 border-2 border-indigo-200/50 shadow-2xl overflow-hidden backdrop-blur-sm">
+        {/* Premium gradient accent bar */}
+        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-500 via-purple-500 via-pink-500 to-rose-500 rounded-t-2xl" />
         
-        <div className="relative">
-          <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 bg-clip-text text-transparent">
+        {/* Decorative background elements */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-200/20 to-purple-200/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-200/20 to-rose-200/20 rounded-full blur-3xl pointer-events-none"></div>
+        
+        {/* Shine effect */}
+        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+        
+        <div className="relative z-10">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-slate-900 via-indigo-900 via-purple-900 to-pink-900 bg-clip-text text-transparent mb-2">
             {branchName !== 'All Branches' ? `${branchName} ${t('dashboard')}` : t('network_overview')}
           </h1>
-          <p className="text-sm md:text-base text-slate-600 mt-1.5 font-medium">
+          <p className="text-sm md:text-base text-slate-600 font-semibold flex items-center gap-2">
+            <div className="w-1.5 h-1.5 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full animate-pulse"></div>
             {currentBranch && currentBranch.BRANCH_NAME
               ? `Management for: ${currentBranch.ADDRESS || '—'}`
               : t('chain_wide_insights')}
           </p>
         </div>
-        {isKimsBrothersDashboard && (
+        {(isKimsBrothersDashboard || selectedBranchId === 'all') && (
           <button 
             onClick={generateAIReport}
             disabled={loadingAI}
-            className="group relative bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 text-white px-6 py-3.5 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 w-full md:w-auto overflow-hidden"
+            className="group relative bg-gradient-to-r from-indigo-600 via-purple-600 via-pink-600 to-rose-600 text-white px-7 py-4 rounded-xl font-bold flex items-center justify-center space-x-3 shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50 transition-all duration-300 disabled:opacity-50 w-full md:w-auto overflow-hidden transform hover:scale-105"
           >
+            {/* Animated gradient background */}
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 via-pink-600 to-rose-600 opacity-100 group-hover:opacity-90 transition-opacity"></div>
+            
             {/* Shine effect */}
-            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-            <div className="relative flex items-center space-x-2">
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+            
+            {/* Glow effect */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-xl blur opacity-30 group-hover:opacity-50 transition-opacity"></div>
+            
+            <div className="relative flex items-center space-x-3 z-10">
               {loadingAI ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin drop-shadow-lg" />
               ) : (
                 <div className="relative">
-                  <div className="absolute inset-0 bg-white/30 rounded-full blur-sm" />
-                  <Sparkles className="w-5 h-5 relative z-10" />
+                  <div className="absolute inset-0 bg-white/40 rounded-full blur-md animate-pulse"></div>
+                  <Sparkles className="w-6 h-6 relative z-10 drop-shadow-lg" />
                 </div>
               )}
-              <span className="text-sm md:text-base">{t('ai_intelligence')}</span>
+              <span className="text-sm md:text-base font-bold tracking-wide">{t('ai_intelligence')}</span>
             </div>
           </button>
         )}
@@ -391,9 +440,354 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         </div>
       )}
 
-      {/* Show advanced analytics content only for Kim's Brothers or "all" branches */}
-      {(isKimsBrothersDashboard || selectedBranchId === 'all') && (
+      {/* All Branches View - Ultra Premium Design */}
+      {selectedBranchId === 'all' && (
         <>
+          {/* Top Stats Row - 4 Premium Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
+            {statsLoading ? (
+              [...Array(4)].map((_, i) => (
+                <div key={i} className="relative bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex items-center justify-between overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-50/50 to-transparent animate-pulse" />
+                  <div className="relative flex-1">
+                    <div className="h-4 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-20 mb-2 animate-pulse" />
+                    <div className="h-8 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-28 animate-pulse" />
+                  </div>
+                  <div className="relative w-14 h-14 bg-gradient-to-br from-slate-200 to-slate-300 rounded-xl animate-pulse" />
+                </div>
+              ))
+            ) : stats ? (
+              <>
+                <StatCard 
+                  title="Total Revenue" 
+                  value={`₱${(stats.todaysRevenue || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} 
+                  icon={DollarSign} 
+                  color="bg-emerald-500" 
+                />
+                <StatCard 
+                  title="Total Orders" 
+                  value={(stats.totalOrders || 0).toLocaleString()} 
+                  icon={Receipt} 
+                  color="bg-blue-500" 
+                />
+                <StatCard 
+                  title="Active Tables" 
+                  value={(stats.activeTables || 0).toLocaleString()} 
+                  icon={Store} 
+                  color="bg-amber-500" 
+                />
+                <StatCard 
+                  title="Pending Orders" 
+                  value={(stats.pendingOrders || 0).toLocaleString()} 
+                  icon={Info} 
+                  color="bg-violet-500" 
+                />
+              </>
+            ) : (
+              <>
+                <StatCard title="Total Revenue" value="₱0.00" icon={DollarSign} color="bg-emerald-500" />
+                <StatCard title="Total Orders" value="0" icon={Receipt} color="bg-blue-500" />
+                <StatCard title="Active Tables" value="0" icon={Store} color="bg-amber-500" />
+                <StatCard title="Pending Orders" value="0" icon={Info} color="bg-violet-500" />
+              </>
+            )}
+          </div>
+
+          {/* AI Analysis Section - Ultra Premium Design */}
+          {aiReport && (
+            <div className="group relative bg-gradient-to-br from-white via-indigo-50/30 to-purple-50/20 border-2 border-indigo-200/50 rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden backdrop-blur-sm">
+              {/* Premium gradient accent bar */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-t-2xl" />
+              
+              {/* Decorative background elements */}
+              <div className="absolute -top-20 -right-20 w-64 h-64 bg-gradient-to-br from-indigo-200/40 to-purple-200/40 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-gradient-to-tr from-pink-200/30 to-indigo-200/30 rounded-full blur-3xl pointer-events-none"></div>
+              
+              {/* Shine effect */}
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+              
+              <div className="flex items-center justify-between mb-6 relative z-10">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl blur-md opacity-40 animate-pulse"></div>
+                    <div className="relative p-3 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-xl text-white shadow-2xl shadow-indigo-500/30">
+                      <Sparkles size={22} className="drop-shadow-lg" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-900 bg-clip-text text-transparent">
+                      Gemini Business Consultant
+                    </h3>
+                    <p className="text-indigo-600 text-sm font-medium mt-1">AI-Powered Strategic Insights for All Branches</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
+                <div className="bg-gradient-to-br from-white to-slate-50/50 p-5 md:p-6 rounded-xl border-2 border-indigo-100 shadow-lg backdrop-blur-sm">
+                  <h4 className="text-xs font-bold text-slate-600 mb-3 uppercase tracking-wider flex items-center gap-2">
+                    <div className="w-1 h-4 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full"></div>
+                    Executive Summary
+                  </h4>
+                  <p className="text-slate-700 leading-relaxed text-sm md:text-base font-medium">{aiReport.summary}</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="space-y-4 group/item">
+                    <div className="flex items-center gap-3 text-emerald-600 font-semibold">
+                      <div className="p-2 bg-emerald-100 rounded-lg">
+                        <CheckCircle2 size={20} className="text-emerald-600" />
+                      </div>
+                      <h4 className="text-base">Strengths</h4>
+                    </div>
+                    <ul className="space-y-3">
+                      {aiReport.strengths.map((item, idx) => (
+                        <li key={idx} className="group/card relative bg-white/80 backdrop-blur-sm p-4 rounded-xl border-2 border-emerald-100 hover:border-emerald-300 hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+                          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent rounded-xl opacity-0 group-hover/card:opacity-100 transition-opacity"></div>
+                          <span className="relative text-sm text-slate-700 leading-relaxed font-medium">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  <div className="space-y-4 group/item">
+                    <div className="flex items-center gap-3 text-rose-600 font-semibold">
+                      <div className="p-2 bg-rose-100 rounded-lg">
+                        <AlertCircle size={20} className="text-rose-600" />
+                      </div>
+                      <h4 className="text-base">Attention Needed</h4>
+                    </div>
+                    <ul className="space-y-3">
+                      {aiReport.weaknesses.map((item, idx) => (
+                        <li key={idx} className="group/card relative bg-white/80 backdrop-blur-sm p-4 rounded-xl border-2 border-rose-100 hover:border-rose-300 hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+                          <div className="absolute inset-0 bg-gradient-to-br from-rose-50/50 to-transparent rounded-xl opacity-0 group-hover/card:opacity-100 transition-opacity"></div>
+                          <span className="relative text-sm text-slate-700 leading-relaxed font-medium">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  <div className="space-y-4 group/item">
+                    <div className="flex items-center gap-3 text-amber-600 font-semibold">
+                      <div className="p-2 bg-amber-100 rounded-lg">
+                        <Lightbulb size={20} className="text-amber-600" />
+                      </div>
+                      <h4 className="text-base">Recommendations</h4>
+                    </div>
+                    <ul className="space-y-3">
+                      {aiReport.recommendations.map((item, idx) => (
+                        <li key={idx} className="group/card relative bg-white/80 backdrop-blur-sm p-4 rounded-xl border-2 border-amber-100 hover:border-amber-300 hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+                          <div className="absolute inset-0 bg-gradient-to-br from-amber-50/50 to-transparent rounded-xl opacity-0 group-hover/card:opacity-100 transition-opacity"></div>
+                          <span className="relative text-sm text-slate-700 leading-relaxed font-medium">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Charts Row - Ultra Premium Design */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Sales Chart - Premium */}
+            <div className="lg:col-span-2 group relative bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/20 border-2 border-blue-200/50 rounded-2xl p-6 md:p-8 shadow-2xl h-[450px] overflow-hidden backdrop-blur-sm">
+              {/* Premium gradient accent bar */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-t-2xl" />
+              
+              {/* Decorative background elements */}
+              <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-200/30 to-indigo-200/30 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-purple-200/20 to-pink-200/20 rounded-full blur-3xl pointer-events-none"></div>
+              
+              {/* Shine effect */}
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none z-10" />
+              
+              <div className="relative flex items-center justify-between mb-6 z-10">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent">
+                    Revenue Comparison
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">Monthly Revenue Trends</p>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {STATIC_BRANCH_NAMES.map((branchName, idx) => {
+                    // Colors matching the image: green for BLUEMOON, blue for DARAEJUNG, purple for KIMS BROTHER
+                    const colors = ['#10b981', '#3b82f6', '#a855f7']; // green, blue, purple
+                    return (
+                      <div key={branchName} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colors[idx] }}></div>
+                        <span className="text-xs font-bold text-slate-700">{branchName}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div className="relative h-[calc(100%-100px)] z-10">
+                {branchComparisonLoading || chartLoading ? (
+                  <div className="w-full h-full flex items-center justify-center text-slate-400">
+                    <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <LineChart data={STATIC_BRANCH_COMPARISON_DATA}>
+                      <defs>
+                        {/* Branch 1 - Red/Orange gradient */}
+                        <linearGradient id="branch1Gradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.8} />
+                        </linearGradient>
+                        {/* Branch 2 - Amber/Yellow gradient */}
+                        <linearGradient id="branch2Gradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#eab308" stopOpacity={0.8} />
+                        </linearGradient>
+                        {/* Branch 3 - Blue/Indigo gradient */}
+                        <linearGradient id="branch3Gradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#6366f1" stopOpacity={0.8} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} strokeOpacity={0.5} />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#64748b" 
+                        fontSize={12} 
+                        fontWeight={600}
+                        tickLine={false} 
+                        axisLine={false} 
+                      />
+                      <YAxis 
+                        stroke="#64748b" 
+                        fontSize={12} 
+                        fontWeight={600}
+                        tickLine={false} 
+                        axisLine={false}
+                        tickFormatter={(value) => `₱${value / 1000}k`}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#ffffff', 
+                          border: '2px solid #e2e8f0', 
+                          borderRadius: '12px',
+                          color: '#0f172a', 
+                          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.15), 0 10px 10px -5px rgb(0 0 0 / 0.1)',
+                          padding: '12px 16px',
+                          fontWeight: 600
+                        }}
+                        formatter={(value: number) => [`₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Revenue']}
+                        labelStyle={{ fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="circle"
+                        formatter={(value) => <span style={{ fontWeight: 600, fontSize: '12px' }}>{value}</span>}
+                      />
+                      {/* Always show 3 branches with static data - Colors: green, blue, purple */}
+                      {STATIC_BRANCH_NAMES.map((branchName, idx) => {
+                        // Colors matching the image: green for BLUEMOON, blue for DARAEJUNG, purple for KIMS BROTHER
+                        const colors = ['#10b981', '#3b82f6', '#a855f7']; // green, blue, purple
+                        const rgbValues = [
+                          { r: 16, g: 185, b: 129 },   // green
+                          { r: 59, g: 130, b: 246 },   // blue
+                          { r: 168, g: 85, b: 247 }    // purple
+                        ];
+                        return (
+                          <Line 
+                            key={`${branchName}-${idx}`}
+                            type="monotone" 
+                            dataKey={branchName} 
+                            stroke={colors[idx]} 
+                            strokeWidth={3}
+                            dot={{ r: 5, fill: colors[idx], strokeWidth: 2, stroke: '#fff' }}
+                            activeDot={{ r: 7, fill: colors[idx] }}
+                            style={{filter: `drop-shadow(0 2px 4px rgba(${rgbValues[idx].r}, ${rgbValues[idx].g}, ${rgbValues[idx].b}, 0.3))`}}
+                          />
+                        );
+                      })}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* Branch Rankings - Premium */}
+            <div className="group relative bg-gradient-to-br from-white via-amber-50/30 to-orange-50/20 border-2 border-amber-200/50 rounded-2xl p-6 shadow-2xl flex flex-col overflow-hidden backdrop-blur-sm">
+              {/* Premium gradient accent bar */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 rounded-t-2xl" />
+              
+              {/* Decorative background */}
+              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-amber-200/30 to-orange-200/30 rounded-full blur-3xl pointer-events-none"></div>
+              
+              {/* Shine effect */}
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
+              
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2.5 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl shadow-lg">
+                    <Trophy className="w-5 h-5 text-white drop-shadow-sm" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg md:text-xl font-bold bg-gradient-to-r from-amber-900 to-orange-900 bg-clip-text text-transparent">
+                      Branch Rankings
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">By Revenue</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-3 flex-1 overflow-y-auto pr-2 max-h-[calc(100%-100px)]">
+                  {topBranchesLoading ? (
+                    <div className="flex items-center justify-center py-12 text-slate-400">
+                      <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+                    </div>
+                  ) : (
+                    topBranchesData.map((branch, idx) => (
+                      <div 
+                        key={branch.id} 
+                        className="group/item relative flex items-center justify-between p-4 rounded-xl bg-white/80 backdrop-blur-sm hover:bg-white border-2 border-slate-100 hover:border-amber-200 hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-br from-amber-50/50 to-orange-50/50 rounded-xl opacity-0 group-hover/item:opacity-100 transition-opacity"></div>
+                        <div className="relative flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`relative p-2.5 rounded-xl transition-all duration-300 ${
+                            idx === 0 
+                              ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30' 
+                              : 'bg-gradient-to-br from-indigo-100 to-blue-100 text-indigo-600 group-hover/item:from-indigo-200 group-hover/item:to-blue-200'
+                          }`}>
+                            {idx === 0 ? (
+                              <>
+                                <div className="absolute inset-0 bg-gradient-to-br from-amber-300 to-orange-400 rounded-xl blur-sm opacity-50 animate-pulse"></div>
+                                <Trophy size={18} className="relative z-10 drop-shadow-sm" />
+                              </>
+                            ) : (
+                              <Store size={18} />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-slate-900 truncate">{branch.name}</p>
+                            <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
+                              <MapPin size={10} /> {(branch.address ?? '').split(',')[0] || '—'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="relative text-right ml-3">
+                          <div className="px-3 py-1.5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg border-2 border-emerald-100 group-hover/item:border-emerald-200 group-hover/item:shadow-md transition-all">
+                            <p className="font-bold text-emerald-700 tabular-nums">₱{(branch.revenue / 1000).toFixed(1)}k</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Kim's Brothers View - Advanced Analytics */}
+      {isKimsBrothersDashboard && (
+        <>
+          {/* Top Stats Row - 6 KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-6">
         {kpisLoading ? (
           [...Array(6)].map((_, i) => (
@@ -427,63 +821,112 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         )}
       </div>
 
+          {/* AI Insights Section - Advanced Design for Kim's Brothers */}
       {aiReport && (
-        <div className="group relative bg-gradient-to-br from-orange-50 via-amber-50/50 to-orange-50 border-2 border-orange-200 p-5 md:p-7 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden animate-in zoom-in duration-300">
+            <div className="group relative bg-gradient-to-br from-indigo-50 via-purple-50/50 to-indigo-50 border-2 border-indigo-200 p-5 md:p-7 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden animate-in zoom-in duration-300">
           {/* Premium gradient accent bar */}
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600" />
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600" />
           
           {/* Decorative corner accent */}
-          <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-orange-200/40 to-amber-200/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-indigo-200/40 to-purple-200/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           
           {/* Shine effect */}
           <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
           
-          <div className="relative flex items-center space-x-3 mb-5">
+          <div className="relative flex items-center space-x-3 mb-6">
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl blur-sm opacity-40" />
-              <div className="relative bg-gradient-to-br from-orange-500 to-amber-600 p-2.5 rounded-xl shadow-lg">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl blur-sm opacity-40" />
+              <div className="relative bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 rounded-xl shadow-lg">
                 <Sparkles className="w-5 h-5 md:w-6 md:h-6 text-white drop-shadow-sm" />
               </div>
             </div>
-            <h2 className="text-lg md:text-xl font-bold text-orange-900">
-              AI Strategic Insights
+            <div>
+              <h2 className="text-lg md:text-xl font-bold text-indigo-900">
+                Gemini Business Consultant
             </h2>
+              <p className="text-xs md:text-sm text-indigo-600 font-medium">
+                AI-Powered Insights for {currentContextName}
+              </p>
           </div>
-          <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <p className="text-sm md:text-base text-orange-900 leading-relaxed mb-5 font-medium">{aiReport.summary}</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {aiReport.recommendations.map((rec: string, idx: number) => (
-                  <div key={idx} className="group/item relative bg-white p-4 rounded-xl border border-orange-200 hover:border-orange-300 hover:shadow-md transition-all duration-200">
-                    <div className="flex items-start space-x-3">
-                      <div className="relative flex-shrink-0">
-                        <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-amber-500 rounded-full blur-sm opacity-30" />
-                        <span className="relative bg-gradient-to-br from-orange-500 to-amber-600 text-white w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-md">
-                          {idx + 1}
-                        </span>
                       </div>
-                      <span className="text-xs md:text-sm text-orange-800 leading-relaxed pt-0.5">{rec}</span>
+
+          {/* Executive Summary */}
+          <div className="relative bg-white p-4 md:p-5 rounded-xl border border-indigo-200 mb-6 shadow-sm">
+            <h4 className="text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Executive Summary</h4>
+            <p className="text-sm md:text-base text-slate-700 leading-relaxed">{aiReport.summary}</p>
                     </div>
+
+          {/* Strengths, Weaknesses, Recommendations Grid */}
+          <div className="relative grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+            {/* Strengths */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-emerald-600 font-semibold">
+                <CheckCircle2 size={18} />
+                <h4 className="text-sm md:text-base">Strengths</h4>
                   </div>
+              <ul className="space-y-2">
+                {aiReport.strengths.map((item, idx) => (
+                  <li key={idx} className="group/item relative bg-white p-3 md:p-4 rounded-xl border border-emerald-200 hover:border-emerald-300 hover:shadow-md transition-all duration-200">
+                    <span className="text-xs md:text-sm text-slate-700 leading-relaxed">{item}</span>
+                  </li>
                 ))}
+              </ul>
               </div>
+
+            {/* Weaknesses */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-rose-600 font-semibold">
+                <AlertCircle size={18} />
+                <h4 className="text-sm md:text-base">Attention Needed</h4>
             </div>
-            <div className="relative bg-white p-5 rounded-xl border-2 border-orange-200 shadow-lg flex flex-col justify-center items-center text-center hover:border-red-300 transition-colors">
-              <div className="relative mb-3">
+              <ul className="space-y-2">
+                {aiReport.weaknesses.map((item, idx) => (
+                  <li key={idx} className="group/item relative bg-white p-3 md:p-4 rounded-xl border border-rose-200 hover:border-rose-300 hover:shadow-md transition-all duration-200">
+                    <span className="text-xs md:text-sm text-slate-700 leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Recommendations */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-amber-600 font-semibold">
+                <Lightbulb size={18} />
+                <h4 className="text-sm md:text-base">Recommendations</h4>
+              </div>
+              <ul className="space-y-2">
+                {aiReport.recommendations.map((item, idx) => (
+                  <li key={idx} className="group/item relative bg-white p-3 md:p-4 rounded-xl border border-amber-200 hover:border-amber-300 hover:shadow-md transition-all duration-200">
+                    <span className="text-xs md:text-sm text-slate-700 leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Urgent Branch Alert (only for all branches view) */}
+          {aiReport.urgentBranch && (
+            <div className="relative mt-6 bg-white p-4 md:p-5 rounded-xl border-2 border-red-200 shadow-lg flex items-center justify-center text-center">
+              <div className="flex items-center gap-3">
+                <div className="relative">
                 <div className="absolute inset-0 bg-red-200 rounded-full blur-md opacity-50" />
-                <div className="relative bg-gradient-to-br from-red-100 to-orange-100 p-4 rounded-full">
-                  <ArrowDownRight className="w-6 h-6 md:w-7 md:h-7 text-red-600" />
+                  <div className="relative bg-gradient-to-br from-red-100 to-orange-100 p-3 rounded-full">
+                    <ArrowDownRight className="w-5 h-5 md:w-6 md:h-6 text-red-600" />
                 </div>
               </div>
-              <h3 className="text-xs md:text-sm font-bold text-slate-800 mb-1 uppercase tracking-wider">Focus Required:</h3>
+                <div>
+                  <h3 className="text-xs md:text-sm font-bold text-slate-800 uppercase tracking-wider">Focus Required:</h3>
               <p className="text-sm md:text-base text-red-600 font-bold">{aiReport.urgentBranch}</p>
             </div>
           </div>
+            </div>
+          )}
         </div>
       )}
 
+          {/* Charts and Advanced Analytics for Kim's Brothers */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Total sales: time-series chart (same as restaurantAdmin Total sales chart) */}
+            {/* Total sales: time-series chart */}
         <div className="xl:col-span-2 group relative bg-white p-4 md:p-6 rounded-2xl shadow-lg border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
           {/* Premium gradient accent bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-green-600" />
@@ -492,7 +935,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           <div className="absolute inset-0 opacity-[0.02] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
           
           <div className="relative flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-2">
-            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('total_sales')} · {currentContextName}</h2>
+                <div>
+                  <h2 className="text-lg md:text-xl font-bold text-slate-900">
+                    {t('total_sales')} · {currentContextName}
+                  </h2>
+                </div>
             <div className="flex items-center space-x-2 px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
               <div className="w-2.5 h-2.5 bg-gradient-to-br from-emerald-500 to-green-600 rounded-full shadow-sm"></div>
               <span className="text-[10px] md:text-xs text-emerald-700 font-semibold">{t('total_sales')}</span>
