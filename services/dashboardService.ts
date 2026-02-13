@@ -407,6 +407,61 @@ export async function getPopularMenuItems(
   return json.data;
 }
 
+// --- Daily Sales by Product (for chart) ---
+
+export type DailySalesByProductItem = {
+  date: string;
+  menu_id: number;
+  MENU_NAME: string;
+  daily_revenue: number;
+};
+
+type DailySalesByProductResponse = {
+  start_date: string | null;
+  end_date: string | null;
+  branch_id: string | null;
+  limit: number;
+  data: DailySalesByProductItem[];
+};
+
+/**
+ * Fetch daily sales by product for chart visualization.
+ * Returns daily revenue breakdown for top products over the last 30 days.
+ * @param branchId - 'all' or specific branch ID
+ * @param days - last N days (default 30)
+ * @param limit - max products (default 5)
+ */
+export async function getDailySalesByProduct(
+  branchId: string | null,
+  days: number = 30,
+  limit: number = 5
+): Promise<DailySalesByProductItem[]> {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - (days - 1));
+  const start_date = start.toISOString().slice(0, 10);
+  const end_date = end.toISOString().slice(0, 10);
+
+  const params: Record<string, string> = {
+    start_date,
+    end_date,
+    limit: String(limit),
+  };
+  if (branchId && branchId !== 'all') {
+    params.branch_id = branchId;
+  }
+
+  const response = await fetch(buildUrl('/reports/daily-sales-by-product', params), {
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+  const json = (await response.json()) as ApiResponse<DailySalesByProductResponse>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to load daily sales by product');
+  }
+  return json.data.data;
+}
+
 // --- Bestseller by Meal Period (Breakfast, Lunch, Dinner) ---
 
 export type BestsellerByPeriod = {

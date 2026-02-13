@@ -21,6 +21,7 @@ import {
   getRevenueReport,
   revenueReportToChartData,
   getPopularMenuItems,
+  getDailySalesByProduct,
   getDashboardKpis,
   getBestsellerByPeriod,
   getPaymentMethodsSummary,
@@ -31,6 +32,7 @@ import {
   type DashboardKpis,
   type PopularMenuItem,
   type BestsellerByPeriod,
+  type DailySalesByProductItem,
 } from '../services/dashboardService';
 import { getBranches } from '../services/branchService';
 
@@ -56,6 +58,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [topBranchesLoading, setTopBranchesLoading] = useState(true);
   const [popularMenuItems, setPopularMenuItems] = useState<PopularMenuItem[]>([]);
   const [popularMenuItemsLoading, setPopularMenuItemsLoading] = useState(true);
+  const [dailySalesByProduct, setDailySalesByProduct] = useState<DailySalesByProductItem[]>([]);
+  const [dailySalesLoading, setDailySalesLoading] = useState(true);
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
   const [bestsellersByPeriod, setBestsellersByPeriod] = useState<BestsellerByPeriod[]>([]);
@@ -115,12 +119,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const loadKpis = useCallback(async () => {
     setKpisLoading(true);
     try {
-      const totalExpense = selectedBranchId === 'all'
-        ? MOCK_BRANCHES.reduce((acc, curr) => acc + curr.expenses.labor + curr.expenses.cogs + curr.expenses.operational, 0)
-        : (() => {
-            const b = MOCK_BRANCHES.find((x) => x.id === selectedBranchId);
-            return b ? b.expenses.labor + b.expenses.cogs + b.expenses.operational : 0;
-          })();
+      const branch = selectedBranchId === 'all' ? null : MOCK_BRANCHES.find((x) => x.id === selectedBranchId);
+      const totalExpense = branch
+        ? branch.expenses.labor + branch.expenses.cogs + branch.expenses.operational
+        : MOCK_BRANCHES.reduce((acc, curr) => acc + curr.expenses.labor + curr.expenses.cogs + curr.expenses.operational, 0);
       const data = await getDashboardKpis(selectedBranchId, { totalExpense });
       setKpis(data);
     } catch {
@@ -153,7 +155,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     }
   }, []);
 
-  // Static sample data for 3 branches - Monthly format (Jan-Jun)
   const STATIC_BRANCH_COMPARISON_DATA = [
     { name: 'Jan', 'BLUEMOON': 85000, 'DARAEJUNG': 65000, "KIMS BROTHER": 45000 },
     { name: 'Feb', 'BLUEMOON': 95000, 'DARAEJUNG': 72000, "KIMS BROTHER": 48000 },
@@ -173,7 +174,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       return;
     }
     
-    // Set static data immediately for instant display
     setBranchComparisonData(STATIC_BRANCH_COMPARISON_DATA);
     setComparisonBranchNames(STATIC_BRANCH_NAMES);
     setBranchComparisonLoading(false);
@@ -182,12 +182,24 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const loadPopularMenuItems = useCallback(async () => {
     setPopularMenuItemsLoading(true);
     try {
-      const res = await getPopularMenuItems(selectedBranchId, 7, 5);
+      const res = await getPopularMenuItems(selectedBranchId, 30, 5);
       setPopularMenuItems(res.data);
     } catch {
       setPopularMenuItems([]);
     } finally {
       setPopularMenuItemsLoading(false);
+    }
+  }, [selectedBranchId]);
+
+  const loadDailySalesByProduct = useCallback(async () => {
+    setDailySalesLoading(true);
+    try {
+      const data = await getDailySalesByProduct(selectedBranchId, 30, 5);
+      setDailySalesByProduct(data);
+    } catch {
+      setDailySalesByProduct([]);
+    } finally {
+      setDailySalesLoading(false);
     }
   }, [selectedBranchId]);
 
@@ -201,31 +213,27 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   useEffect(() => {
     loadPopularMenuItems();
-  }, [loadPopularMenuItems]);
+    loadDailySalesByProduct();
+  }, [loadPopularMenuItems, loadDailySalesByProduct]);
 
   const loadBestsellersByPeriod = useCallback(async () => {
     setBestsellersLoading(true);
+    const periods = ['Breakfast', 'Lunch', 'Dinner'];
+    const defaultPeriods = periods.map(period => ({
+      period,
+      menu_name: 'No orders yet',
+      total_sold: 0
+    }));
+    
     try {
       const data = await getBestsellerByPeriod(selectedBranchId);
-      const periods = ['Breakfast', 'Lunch', 'Dinner'];
-      const defaultPeriods = periods.map(period => ({
-        period,
-        menu_name: 'No orders yet',
-        total_sold: 0
-      }));
-      
       const result = periods.map(period => 
         data.find(item => item.period === period) || 
         defaultPeriods.find(p => p.period === period)!
       );
-      
       setBestsellersByPeriod(result);
     } catch {
-      setBestsellersByPeriod([
-        { period: 'Breakfast', menu_name: 'No orders yet', total_sold: 0 },
-        { period: 'Lunch', menu_name: 'No orders yet', total_sold: 0 },
-        { period: 'Dinner', menu_name: 'No orders yet', total_sold: 0 }
-      ]);
+      setBestsellersByPeriod(defaultPeriods);
     } finally {
       setBestsellersLoading(false);
     }
@@ -264,7 +272,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     const branchesToAnalyze = selectedBranchId === 'all' 
       ? MOCK_BRANCHES 
       : MOCK_BRANCHES.filter(b => b.id === selectedBranchId);
-      
     const insights = await getAIInsights(branchesToAnalyze);
     setAiReport(insights);
     setLoadingAI(false);
@@ -274,7 +281,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     ? null 
     : MOCK_BRANCHES.find(b => b.id === selectedBranchId);
 
-  // Context name for titles - use API branch name if available, otherwise fallback to mock
   const currentContextName = branchName !== 'All Branches' ? branchName : (activeBranch ? activeBranch.name : t('all_branches'));
 
   const totalRevenue = stats?.todaysRevenue ?? 0;
@@ -289,7 +295,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   const profit = totalRevenue - totalExpenses;
 
-  // Colors for Top 5 products list + product sales graph
   const TOP_PRODUCT_COLORS = ['#78909c', '#9ccc65', '#42a5f5', '#ec407a', '#8b5cf6'] as const;
   const popularHasSignal = popularMenuItems.some((x) =>
     Number(x.total_revenue ?? 0) > 0 || Number(x.total_quantity ?? 0) > 0 || Number(x.order_count ?? 0) > 0
@@ -297,60 +302,80 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const displayedPopularMenuItems = popularHasSignal ? popularMenuItems : SAMPLE_POPULAR_MENU_ITEMS;
   const top5PopularMenuItems = displayedPopularMenuItems.slice(0, 5);
   const PRODUCT_SERIES_DAYS = 30;
-  const mulberry32 = (seed: number) => {
-    let a = seed >>> 0;
-    return () => {
-      a |= 0;
-      a = (a + 0x6d2b79f5) | 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  };
 
   const productKeyToName = Object.fromEntries(
     top5PopularMenuItems.map((p, idx) => [`p${idx}`, p.MENU_NAME])
   ) as Record<string, string>;
 
   const productSalesStackedChartData = (() => {
-    // Build last N day labels (like restaurantAdmin glance view)
+    if (!top5PopularMenuItems || top5PopularMenuItems.length === 0) {
+      return [];
+    }
     const end = new Date();
     end.setHours(12, 0, 0, 0);
     const start = new Date(end);
     start.setDate(start.getDate() - (PRODUCT_SERIES_DAYS - 1));
 
     const labels: string[] = [];
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      labels.push(
-        d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' })
-      );
+    const dateMap = new Map<string, string>();
+    
+    for (let i = 0; i < PRODUCT_SERIES_DAYS; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const label = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
+      labels.push(label);
+      dateMap.set(dateStr, label);
     }
 
-    // Deterministic per-branch seed so it doesn't "shuffle" on re-render
-    const seedBase = (selectedBranchId ?? 'all')
-      .split('')
-      .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-
-    // Distribute each product's total revenue across days using random weights
-    const seriesByProduct = top5PopularMenuItems.map((item, pIdx) => {
-      const rnd = mulberry32(seedBase * 100 + (pIdx + 1) * 999);
-      const weights = Array.from({ length: labels.length }, (_, dayIdx) => {
-        // Add a subtle weekly pattern (weekends a bit higher)
-        const date = new Date(start);
-        date.setDate(start.getDate() + dayIdx);
-        const dow = date.getDay(); // 0=Sun ... 6=Sat
-        const weekendBoost = dow === 0 || dow === 6 ? 1.25 : 1.0;
-        return (0.65 + rnd() * 0.9) * weekendBoost;
-      });
-      const sumW = weights.reduce((a, b) => a + b, 0) || 1;
-      const total = Math.max(0, Number(item.total_revenue ?? 0));
-      return weights.map((w) => Math.round((w / sumW) * total));
+    const productIndexMap = new Map<number, number>();
+    top5PopularMenuItems.forEach((item, idx) => {
+      if (item?.IDNo) {
+        productIndexMap.set(item.IDNo, idx);
+      }
     });
 
-    return labels.map((label, dayIdx) => {
+    const dailyData = new Map<string, Map<number, number>>();
+    labels.forEach((label) => {
+      dailyData.set(label, new Map());
+      top5PopularMenuItems.forEach((_, idx) => {
+        dailyData.get(label)!.set(idx, 0);
+      });
+    });
+    if (dailySalesByProduct && Array.isArray(dailySalesByProduct)) {
+      dailySalesByProduct.forEach((item) => {
+        if (!item || !item.menu_id) return;
+        
+        const productIdx = productIndexMap.get(item.menu_id);
+        if (productIdx === undefined) return;
+        
+        let dateStr: string;
+        if (typeof item.date === 'string') {
+          dateStr = item.date.slice(0, 10);
+        } else if (item.date instanceof Date) {
+          dateStr = item.date.toISOString().slice(0, 10);
+        } else {
+          try {
+            dateStr = new Date(item.date).toISOString().slice(0, 10);
+          } catch {
+            return;
+          }
+        }
+        
+        const label = dateMap.get(dateStr);
+        if (label && dailyData.has(label)) {
+          const currentValue = dailyData.get(label)!.get(productIdx) || 0;
+          const revenue = Number(item.daily_revenue) || 0;
+          dailyData.get(label)!.set(productIdx, currentValue + revenue);
+        }
+      });
+    }
+
+    return labels.map((label) => {
       const row: Record<string, string | number> = { name: label };
-      seriesByProduct.forEach((series, pIdx) => {
-        row[`p${pIdx}`] = series[dayIdx] ?? 0;
+      const dayData = dailyData.get(label);
+      top5PopularMenuItems.forEach((_, pIdx) => {
+        row[`p${pIdx}`] = dayData?.get(pIdx) || 0;
       });
       return row as { name: string } & Record<string, number>;
     });
@@ -1158,7 +1183,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           <div className="relative mb-4">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
               <div className="w-1.5 h-1.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse" />
-              <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · Last 7 days</p>
+              <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · Last 30 days</p>
             </div>
           </div>
           
@@ -1208,49 +1233,98 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           {/* Shine effect on hover */}
           <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
         </div>
-        <div className="lg:col-span-2 group relative bg-white p-5 md:p-6 rounded-2xl shadow-xl border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
+        <div className="lg:col-span-2 group relative bg-white p-4 md:p-5 rounded-2xl shadow-xl border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
           {/* Premium gradient accent bar */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
           
           {/* Subtle background pattern */}
           <div className="absolute inset-0 opacity-[0.03] bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900" />
           
-          {/* Decorative corner accent */}
+          {/* Decorative corner accents */}
           <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-indigo-100/40 to-purple-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-36 h-36 bg-gradient-to-tr from-pink-100/30 to-purple-100/30 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
           
-          <div className="relative flex flex-col sm:flex-row sm:justify-between sm:items-center mb-5 gap-3">
-            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('sales_graph_by_product')}</h2>
-            <div className="flex items-center gap-2 flex-wrap">
-              {top5PopularMenuItems.slice(0, 5).map((item, idx) => (
-                <div key={item.IDNo} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200">
-                  <div 
-                    className="w-2 h-2 rounded-full shadow-sm ring-1 ring-white"
-                    style={{ backgroundColor: TOP_PRODUCT_COLORS[idx] ?? '#94a3b8' }}
-                  />
-                  <span className="text-[9px] font-semibold text-slate-700 truncate max-w-[60px]">{item.MENU_NAME}</span>
+          {/* Premium Header */}
+          <div className="relative flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 via-purple-500 to-pink-500 rounded-xl blur-md opacity-40" />
+                <div className="relative bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-2 rounded-lg shadow-lg">
+                  <TrendingUp className="w-4 h-4 text-white drop-shadow-md" />
                 </div>
-              ))}
+              </div>
+              <div>
+                <h2 className="text-base md:text-lg font-bold text-slate-900">{t('sales_graph_by_product')}</h2>
+                <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider">Product Performance</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {top5PopularMenuItems.slice(0, 5).map((item, idx) => {
+                const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
+                const rgb = color.startsWith('#') 
+                  ? {
+                      r: parseInt(color.slice(1, 3), 16),
+                      g: parseInt(color.slice(3, 5), 16),
+                      b: parseInt(color.slice(5, 7), 16)
+                    }
+                  : { r: 148, g: 163, b: 184 };
+                return (
+                  <div 
+                    key={item.IDNo} 
+                    className="group/legend relative flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all duration-200"
+                    style={{ 
+                      background: `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.02))`
+                    }}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <div 
+                        className="absolute inset-0 rounded-full blur-sm opacity-60"
+                        style={{ backgroundColor: color }}
+                      />
+                      <div 
+                        className="relative w-2 h-2 rounded-full shadow-sm ring-1 ring-white"
+                        style={{ backgroundColor: color }}
+                      />
+                    </div>
+                    <span 
+                      className="text-[8px] font-bold truncate max-w-[55px] group-hover/legend:scale-105 transition-transform"
+                      style={{ color: color }}
+                    >
+                      {item.MENU_NAME}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
           
-          <div className="relative mb-5">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-100">
-              <div className="w-1.5 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full animate-pulse" />
-              <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · Last 7 days</p>
+          <div className="relative mb-3">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-md border border-indigo-100 shadow-sm">
+              <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full blur-sm opacity-50" />
+                <div className="relative w-1.5 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full animate-pulse" />
+              </div>
+              <p className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · Last 30 days</p>
             </div>
           </div>
           
-          <div className="relative h-64 md:h-80 min-h-[240px]">
+          <div className="relative h-72 md:h-96 min-h-[280px]">
             {/* Shine effect on hover */}
-            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent z-10 pointer-events-none" />
             
-            {popularMenuItemsLoading ? (
+            {popularMenuItemsLoading || dailySalesLoading ? (
               <div className="w-full h-full flex items-center justify-center text-slate-400">
                 <Loader2 className="w-8 h-8 animate-spin" />
               </div>
+            ) : productSalesStackedChartData.length === 0 || !top5PopularMenuItems || top5PopularMenuItems.length === 0 ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
+                <p className="text-sm font-semibold text-slate-500">No sales data available</p>
+                <p className="text-xs text-slate-400 mt-1">Sales data will appear here once orders are placed</p>
+              </div>
             ) : (
-              <ResponsiveContainer width="100%" height={300} minWidth={0}>
-                <BarChart data={productSalesStackedChartData} margin={{ left: 8, right: 16, bottom: 24 }}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={productSalesStackedChartData} margin={{ left: 8, right: 16, bottom: 32, top: 8 }}>
                   <defs>
                     {top5PopularMenuItems.map((item, idx) => {
                       const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
@@ -1269,21 +1343,23 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       );
                     })}
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.6} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.4} />
                   <XAxis
                     dataKey="name"
                     axisLine={false}
                     tickLine={false}
-                    interval={2}
+                    interval={0}
                     angle={-45}
                     textAnchor="end"
-                    height={52}
-                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 500 }}
+                    height={55}
+                    tick={{ fill: '#64748b', fontSize: 8, fontWeight: 600 }}
+                    tickCount={30}
+                    dy={4}
                   />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 500 }}
+                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }}
                     tickFormatter={(v) => `₱${(Number(v) / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
@@ -1295,31 +1371,108 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       backgroundColor: 'white',
                       padding: '12px 16px'
                     }}
-                    labelStyle={{ fontWeight: 600, color: '#1e293b', marginBottom: '4px' }}
+                    labelStyle={{ fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}
                     labelFormatter={(label) => String(label)}
-                    formatter={(value: number, name: string) => [
-                      `₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                      productKeyToName[name] ?? name,
-                    ]}
+                    formatter={(value: number, name: string) => {
+                      const productIdx = parseInt(name.replace('p', ''), 10);
+                      const color = TOP_PRODUCT_COLORS[productIdx] ?? '#94a3b8';
+                      const productName = productKeyToName[name] ?? name;
+                      return [
+                        <span key={name} style={{ color: color, fontWeight: 600 }}>
+                          {productName}: ₱{Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>,
+                        ''
+                      ];
+                    }}
+                    itemStyle={{ padding: '2px 0' }}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const totalValue = payload.reduce((sum: number, entry: any) => sum + (Number(entry.value) || 0), 0);
+                      return (
+                        <div className="bg-white rounded-xl border-2 border-slate-200 shadow-2xl p-4 backdrop-blur-sm">
+                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200">
+                            <p className="font-bold text-slate-900 text-sm">{label}</p>
+                            <div className="px-2 py-1 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-md border border-indigo-100">
+                              <span className="text-xs font-bold text-indigo-700">
+                                Total: ₱{totalValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            {payload
+                              .filter((entry: any) => (Number(entry.value) || 0) > 0)
+                              .map((entry: any, idx: number) => {
+                                const productIdx = parseInt(entry.dataKey?.replace('p', '') || '0', 10);
+                                const color = TOP_PRODUCT_COLORS[productIdx] ?? '#94a3b8';
+                                const productName = productKeyToName[entry.dataKey] ?? entry.dataKey;
+                                const value = Number(entry.value) || 0;
+                                const rgb = color.startsWith('#') 
+                                  ? {
+                                      r: parseInt(color.slice(1, 3), 16),
+                                      g: parseInt(color.slice(3, 5), 16),
+                                      b: parseInt(color.slice(5, 7), 16)
+                                    }
+                                  : { r: 148, g: 163, b: 184 };
+                                return (
+                                  <div key={idx} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors">
+                                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                                      <div className="relative flex-shrink-0">
+                                        <div 
+                                          className="absolute inset-0 rounded-full blur-sm opacity-50"
+                                          style={{ backgroundColor: color }}
+                                        />
+                                        <div 
+                                          className="relative w-3 h-3 rounded-full shadow-md ring-2 ring-white"
+                                          style={{ backgroundColor: color }}
+                                        />
+                                      </div>
+                                      <span className="text-xs font-bold truncate" style={{ color: color }}>
+                                        {productName}
+                                      </span>
+                                    </div>
+                                    <div 
+                                      className="px-2.5 py-1 rounded-md font-bold text-xs shadow-sm"
+                                      style={{ 
+                                        backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`,
+                                        color: color,
+                                        border: `1px solid rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`
+                                      }}
+                                    >
+                                      ₱{value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      );
+                    }}
                   />
-                  {top5PopularMenuItems.map((item, idx) => (
-                    <Bar
-                      key={item.IDNo}
-                      dataKey={`p${idx}`}
-                      stackId="products"
-                      fill={`url(#productGradient${idx})`}
-                      radius={[4, 4, 0, 0]}
-                      isAnimationActive={false}
-                      style={{filter: `drop-shadow(0 2px 4px rgba(${TOP_PRODUCT_COLORS[idx] ? 
-                        (() => {
-                          const c = TOP_PRODUCT_COLORS[idx];
-                          if (c.startsWith('#')) {
-                            return `${parseInt(c.slice(1, 3), 16)}, ${parseInt(c.slice(3, 5), 16)}, ${parseInt(c.slice(5, 7), 16)}`;
-                          }
-                          return '148, 163, 184';
-                        })() : '148, 163, 184'}, 0.2))`}}
-                    />
-                  ))}
+                  {top5PopularMenuItems.map((item, idx) => {
+                    const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
+                    const rgb = color.startsWith('#') 
+                      ? {
+                          r: parseInt(color.slice(1, 3), 16),
+                          g: parseInt(color.slice(3, 5), 16),
+                          b: parseInt(color.slice(5, 7), 16)
+                        }
+                      : { r: 148, g: 163, b: 184 };
+                    return (
+                      <Bar
+                        key={item.IDNo}
+                        dataKey={`p${idx}`}
+                        stackId="products"
+                        fill={`url(#productGradient${idx})`}
+                        radius={[6, 6, 0, 0]}
+                        isAnimationActive={true}
+                        animationDuration={800}
+                        style={{
+                          filter: `drop-shadow(0 4px 8px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25))`,
+                          transition: 'all 0.3s ease'
+                        }}
+                      />
+                    );
+                  })}
                 </BarChart>
               </ResponsiveContainer>
             )}
