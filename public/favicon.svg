@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="RestoAdmin Pro">
+  <defs>
+    <linearGradient id="g" x1="12" y1="10" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22c55e"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b1220"/>
+  <path d="M16 18c0-2.2 1.8-4 4-4h18.5c8 0 13.5 4.3 13.5 11.7 0 5.1-2.7 8.8-7.4 10.6L52 50.5a3.8 3.8 0 0 1-3.4 5.5h-1.2c-1.5 0-2.9-.9-3.5-2.3L37 39H26v13c0 2.2-1.8 4-4 4h-2c-2.2 0-4-1.8-4-4V18Zm10 5v10h12.7c3.5 0 5.8-1.9 5.8-5 0-3.2-2.3-5-5.8-5H26Z" fill="url(#g)"/>
+</svg>

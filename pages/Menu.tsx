@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronRight, Plus, Edit3, Trash2, AlertCircle, Loader2 } from 'lucide-react';
+import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronRight, ChevronDown, Plus, Edit3, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 import { MOCK_BRANCHES } from '../constants';
 import { MenuCategory, MenuRecord, BranchRecord } from '../types';
 import { getMenuCategories, getMenus, createMenu, updateMenu, deleteMenu } from '../services/menuService';
@@ -10,6 +10,82 @@ import { getApiBaseUrl } from '../utils/apiConfig';
 interface MenuProps {
   selectedBranchId: string;
 }
+
+type DropdownOption = { value: string; label: string; disabled?: boolean };
+
+const Dropdown: React.FC<{
+  value: string;
+  options: DropdownOption[];
+  onChange: (next: string) => void;
+  placeholder?: string;
+  buttonClassName?: string;
+  menuClassName?: string;
+  itemClassName?: string;
+}> = ({ value, options, onChange, placeholder = 'Select...', buttonClassName = '', menuClassName = '', itemClassName = '' }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={[
+          'w-full flex items-center justify-between pl-4 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium hover:bg-slate-100 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white focus:outline-none transition-colors',
+          buttonClassName,
+        ].join(' ')}
+      >
+        <span className={selected ? 'text-slate-900' : 'text-slate-400'}>{selected?.label ?? placeholder}</span>
+        <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div
+          className={[
+            'absolute top-full left-0 right-0 mt-1 py-1.5 rounded-xl border border-slate-200 bg-white shadow-lg z-50 max-h-60 overflow-auto',
+            menuClassName,
+          ].join(' ')}
+        >
+          {options.map((opt) => {
+            const isSelected = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={opt.disabled}
+                onClick={() => {
+                  if (opt.disabled) return;
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={[
+                  'w-full text-left px-4 py-2.5 text-sm font-medium transition-colors',
+                  opt.disabled
+                    ? 'text-slate-300 cursor-not-allowed'
+                    : isSelected
+                      ? 'bg-orange-100 text-orange-700'
+                      : 'text-slate-700 hover:bg-slate-50',
+                  itemClassName,
+                ].join(' ')}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   const { t, i18n } = useTranslation('common');
@@ -426,26 +502,28 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
         <div className="flex flex-wrap gap-2 w-full xl:w-auto">
           <div className="flex items-center space-x-2">
             <Filter className="w-4 h-4 text-slate-400" />
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-all"
-            >
-              <option value="all">{t('all_categories')}</option>
-              {categories.map(category => (
-                <option key={category.id} value={category.id}>{category.name}</option>
-              ))}
-            </select>
+            <div className="min-w-[220px]">
+              <Dropdown
+                value={selectedCategory}
+                onChange={(v) => setSelectedCategory(v)}
+                options={[
+                  { value: 'all', label: t('all_categories') },
+                  ...categories.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              />
+            </div>
           </div>
-          <select
-            value={availability}
-            onChange={(e) => setAvailability(e.target.value as 'all' | 'available' | 'unavailable')}
-            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-all"
-          >
-            <option value="all">{t('all_availability')}</option>
-            <option value="available">{t('available')}</option>
-            <option value="unavailable">{t('unavailable')}</option>
-          </select>
+          <div className="min-w-[200px]">
+            <Dropdown
+              value={availability}
+              onChange={(v) => setAvailability(v as 'all' | 'available' | 'unavailable')}
+              options={[
+                { value: 'all', label: t('all_availability') },
+                { value: 'available', label: t('available') },
+                { value: 'unavailable', label: t('unavailable') },
+              ]}
+            />
+          </div>
         </div>
       </div>
 
@@ -622,7 +700,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             }}
           ></div>
           <div className="relative min-h-screen flex items-center justify-center p-4 sm:p-6">
-            <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-visible animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-orange-500 rounded-xl text-white">
@@ -680,16 +758,17 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('category')}</label>
-                  <select
+                  <Dropdown
                     value={formState.categoryId}
-                    onChange={(e) => setFormState((prev) => ({ ...prev, categoryId: e.target.value }))}
-                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all appearance-none"
-                  >
-                    <option value="">{t('uncategorized')}</option>
-                    {categories.map(category => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFormState((prev) => ({ ...prev, categoryId: v }))}
+                    placeholder={t('uncategorized')}
+                    options={[
+                      { value: '', label: t('uncategorized') },
+                      ...categories.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
+                    buttonClassName="p-3 py-3 pl-3 pr-3"
+                    itemClassName="px-3"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('price_label')}</label>
@@ -705,29 +784,31 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                 {selectedBranchId === 'all' && (
                   <div className="space-y-1.5 sm:col-span-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('target_branch')}</label>
-                    <select
-                      required
+                    <Dropdown
                       value={formState.branchId}
-                      onChange={(e) => setFormState((prev) => ({ ...prev, branchId: e.target.value }))}
-                      className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all appearance-none"
-                    >
-                      <option value="">{t('select_branch')}</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>{branch.name}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setFormState((prev) => ({ ...prev, branchId: v }))}
+                      placeholder={t('select_branch')}
+                      options={[
+                        { value: '', label: t('select_branch') },
+                        ...branches.map((b) => ({ value: b.id, label: b.name })),
+                      ]}
+                      buttonClassName="p-3 py-3 pl-3 pr-3"
+                      itemClassName="px-3"
+                    />
                   </div>
                 )}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('availability')}</label>
-                  <select
+                  <Dropdown
                     value={formState.isAvailable ? 'yes' : 'no'}
-                    onChange={(e) => setFormState((prev) => ({ ...prev, isAvailable: e.target.value === 'yes' }))}
-                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500 transition-all appearance-none"
-                  >
-                    <option value="yes">{t('available')}</option>
-                    <option value="no">{t('unavailable')}</option>
-                  </select>
+                    onChange={(v) => setFormState((prev) => ({ ...prev, isAvailable: v === 'yes' }))}
+                    options={[
+                      { value: 'yes', label: t('available') },
+                      { value: 'no', label: t('unavailable') },
+                    ]}
+                    buttonClassName="p-3 py-3 pl-3 pr-3"
+                    itemClassName="px-3"
+                  />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('image')}</label>

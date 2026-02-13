@@ -7,6 +7,7 @@ export type BillingRecord = {
   branchCode?: string;
   orderId: number;
   orderNo: string;
+  tableNumber?: string | null;
   paymentMethod: string;
   amountDue: number;
   amountPaid: number;
@@ -20,6 +21,7 @@ export type BillingDetail = {
   id: number;
   orderId: number;
   orderNo: string;
+  tableNumber?: string | null;
   paymentMethod: string;
   amountDue: number;
   amountPaid: number;
@@ -76,6 +78,7 @@ type BillingApiRow = {
   BRANCH_LABEL?: string;
   ORDER_ID: number;
   ORDER_NO?: string;
+  TABLE_NUMBER?: string | null;
   PAYMENT_METHOD?: string;
   AMOUNT_DUE?: number;
   AMOUNT_PAID?: number;
@@ -122,6 +125,7 @@ function mapBillingRow(row: BillingApiRow): BillingRecord {
     branchCode: row.BRANCH_CODE,
     orderId: row.ORDER_ID,
     orderNo: row.ORDER_NO ?? '',
+    tableNumber: row.TABLE_NUMBER ?? null,
     paymentMethod: row.PAYMENT_METHOD ?? 'CASH',
     amountDue: Number(row.AMOUNT_DUE ?? 0),
     amountPaid: Number(row.AMOUNT_PAID ?? 0),
@@ -157,6 +161,7 @@ export async function getBillingByOrderId(orderId: string): Promise<BillingDetai
     id: row.IDNo,
     orderId: row.ORDER_ID,
     orderNo: row.ORDER_NO ?? '',
+    tableNumber: row.TABLE_NUMBER ?? null,
     paymentMethod: row.PAYMENT_METHOD ?? 'CASH',
     amountDue: Number(row.AMOUNT_DUE ?? 0),
     amountPaid: Number(row.AMOUNT_PAID ?? 0),
