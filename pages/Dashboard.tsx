@@ -7,10 +7,11 @@ import {
 import { 
   DollarSign, Store, Sparkles, Loader2, 
   TrendingUp, ArrowDownRight, 
-  Info, Trophy, MapPin, RefreshCw,
+  Info, Trophy, MapPin,
   Tag, Receipt, CircleDollarSign,
   CheckCircle2, AlertCircle, Lightbulb,
-  Coffee, UtensilsCrossed, ChefHat
+  Coffee, UtensilsCrossed, ChefHat,
+  ShoppingBag
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { MOCK_BRANCHES, SALES_CHART_DATA } from '../constants';
@@ -22,6 +23,7 @@ import {
   getPopularMenuItems,
   getDashboardKpis,
   getBestsellerByPeriod,
+  getPaymentMethodsSummary,
   SAMPLE_POPULAR_MENU_ITEMS,
   SAMPLE_PAYMENT_METHOD_EXPORT,
   type PaymentMethodExportRow,
@@ -58,6 +60,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [kpisLoading, setKpisLoading] = useState(true);
   const [bestsellersByPeriod, setBestsellersByPeriod] = useState<BestsellerByPeriod[]>([]);
   const [bestsellersLoading, setBestsellersLoading] = useState(true);
+  const [paymentMethodsSummary, setPaymentMethodsSummary] = useState<PaymentMethodExportRow[]>([]);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(true);
 
   const [isKimsBrothersDashboard, setIsKimsBrothersDashboard] = useState<boolean>(false);
   const [isDaraejungBranch, setIsDaraejungBranch] = useState<boolean>(false);
@@ -233,6 +237,24 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     }
   }, [loadBestsellersByPeriod, isKimsBrothersDashboard]);
 
+  const loadPaymentMethodsSummary = useCallback(async () => {
+    setPaymentMethodsLoading(true);
+    try {
+      const data = await getPaymentMethodsSummary(selectedBranchId);
+      setPaymentMethodsSummary(data);
+    } catch {
+      setPaymentMethodsSummary(SAMPLE_PAYMENT_METHOD_EXPORT);
+    } finally {
+      setPaymentMethodsLoading(false);
+    }
+  }, [selectedBranchId]);
+
+  useEffect(() => {
+    if (isKimsBrothersDashboard) {
+      loadPaymentMethodsSummary();
+    }
+  }, [loadPaymentMethodsSummary, isKimsBrothersDashboard]);
+
   useEffect(() => {
     setAiReport(null);
   }, [selectedBranchId]);
@@ -339,7 +361,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     ? SALES_CHART_DATA
     : chartData;
 
-  const paymentMethodExportRows: PaymentMethodExportRow[] = SAMPLE_PAYMENT_METHOD_EXPORT;
   const formatPeso = (amount: number) =>
     `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -803,10 +824,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       {/* Kim's Brothers View - Advanced Analytics */}
       {isKimsBrothersDashboard && (
         <>
-          {/* Top Stats Row - 6 KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-6">
+          {/* Top Stats Row - 5 KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
         {kpisLoading ? (
-          [...Array(6)].map((_, i) => (
+          [...Array(5)].map((_, i) => (
             <div key={i} className="relative bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex items-center justify-between overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-50/50 to-transparent animate-pulse" />
               <div className="relative flex-1">
@@ -819,7 +840,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         ) : kpis ? (
           <>
             <StatCard title={t('total_sales')} value={`₱${kpis.totalSales.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={DollarSign} changeAmount={kpis.totalSales.change} changePercent={kpis.totalSales.changePercent} color="bg-green-500" />
-            <StatCard title={t('refund')} value={`₱${kpis.refund.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={RefreshCw} changeAmount={kpis.refund.change} changePercent={kpis.refund.changePercent} color="bg-slate-500" />
             <StatCard title={t('discount')} value={`₱${kpis.discount.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Tag} changeAmount={kpis.discount.change} changePercent={kpis.discount.changePercent} color="bg-amber-500" />
             <StatCard title={t('net_sales')} value={`₱${kpis.netSales.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={TrendingUp} changeAmount={kpis.netSales.change} changePercent={kpis.netSales.changePercent} color="bg-blue-600" />
             <StatCard title={t('expenses')} value={`₱${kpis.expense.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Receipt} changeAmount={kpis.expense.change} changePercent={kpis.expense.changePercent} color="bg-orange-500" />
@@ -828,7 +848,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         ) : (
           <>
             <StatCard title={t('total_sales')} value={`₱${totalRevenue.toLocaleString()}`} icon={DollarSign} color="bg-green-500" />
-            <StatCard title={t('refund')} value="₱0.00" icon={RefreshCw} color="bg-slate-500" />
             <StatCard title={t('discount')} value="₱0.00" icon={Tag} color="bg-amber-500" />
             <StatCard title={t('net_sales')} value={`₱${totalRevenue.toLocaleString()}`} icon={TrendingUp} color="bg-blue-600" />
             <StatCard title={t('expenses')} value={`₱${totalExpenses.toLocaleString()}`} icon={Receipt} color="bg-orange-500" />
@@ -1308,119 +1327,106 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         </div>
       </div>
 
-      {/* Payment Methods (EXPORT) - Ultra Premium Design */}
-      <div className="group relative bg-white rounded-2xl shadow-xl border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
-        {/* Premium gradient accent bar */}
+      {/* Payment Methods Summary */}
+      <div className="group relative bg-white pl-3 pr-5 pt-4 pb-5 md:pl-4 md:pr-6 md:pt-5 md:pb-6 rounded-2xl shadow-xl border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
-        
-        {/* Subtle background pattern */}
-        <div className="absolute inset-0 opacity-[0.02] bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900" />
-        
-        {/* Decorative corner accent */}
+        <div className="absolute inset-0 opacity-[0.03] bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900" />
         <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-emerald-100/40 to-teal-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-36 h-36 bg-gradient-to-tr from-cyan-100/30 to-teal-100/30 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
         
-        {/* Premium Header */}
-        <div className="relative flex items-center gap-3 px-5 md:px-7 py-5 border-b border-slate-200 bg-gradient-to-r from-emerald-50/50 via-teal-50/30 to-transparent">
+        <div className="relative flex items-center justify-between mb-5">
+          <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('payment_methods_summary')}</h2>
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl blur-sm opacity-40" />
-            <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-sm shadow-lg">
-              EX
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 rounded-xl blur-md opacity-40" />
+            <div className="relative bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-2.5 rounded-xl shadow-lg">
+              <ShoppingBag className="w-5 h-5 text-white drop-shadow-md" />
             </div>
-          </div>
-          <div>
-            <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('export')}</h2>
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">{t('payment_methods_summary')}</p>
           </div>
         </div>
 
-        {/* Premium Table */}
-        <div className="relative overflow-x-auto">
-          <table className="min-w-[760px] w-full">
+        <div className="relative overflow-x-auto -mx-1">
+          <table className="w-full">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 via-slate-100/50 to-slate-50 border-b-2 border-slate-200">
-                <th className="text-left px-5 md:px-7 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">
+              <tr className="bg-gradient-to-r from-slate-50 via-emerald-50/40 to-slate-50 border-b-2 border-emerald-200/60">
+                <th className="text-left pl-2 pr-4 py-2 text-[10px] md:text-xs text-slate-700 font-black uppercase tracking-wider">
                   <div className="flex items-center gap-2">
-                    <div className="w-1 h-4 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+                    <div className="w-1 h-3 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full shadow-sm" />
                     <span>{t('payment_method')}</span>
                   </div>
                 </th>
-                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">{t('payment_transaction')}</th>
-                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">{t('payment_amount')}</th>
-                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">{t('refund_transaction')}</th>
-                <th className="text-right px-4 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">{t('refund_amount')}</th>
-                <th className="text-right px-5 md:px-7 py-4 text-[10px] md:text-xs text-slate-700 font-bold uppercase tracking-wider">
+                <th className="text-left px-3 py-2 text-[10px] md:text-xs text-slate-700 font-black uppercase tracking-wider">{t('payment_transaction')}</th>
+                <th className="text-left px-3 py-2 text-[10px] md:text-xs text-slate-700 font-black uppercase tracking-wider">{t('payment_amount')}</th>
+                <th className="text-right pr-2 pl-4 py-2 text-[10px] md:text-xs text-slate-700 font-black uppercase tracking-wider">
                   <div className="flex items-center justify-end gap-2">
                     <span>{t('net_amount')}</span>
-                    <div className="w-1 h-4 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+                    <div className="w-1 h-3 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full shadow-sm" />
                   </div>
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paymentMethodExportRows.map((row, index) => (
+            <tbody className="divide-y divide-slate-100/40">
+              {paymentMethodsLoading ? (
+                <tr>
+                  <td colSpan={4} className="px-3 py-8 text-center text-slate-400">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                  </td>
+                </tr>
+              ) : (
+                paymentMethodsSummary.map((row) => (
                 <tr
                   key={row.payment_method}
-                  className={`group/row transition-all duration-200 ${
+                  className={`group/row transition-all duration-300 ${
                     row.is_total 
-                      ? 'bg-gradient-to-r from-slate-100 via-emerald-50/30 to-slate-100 font-bold text-slate-900 border-t-2 border-emerald-200' 
-                      : 'hover:bg-gradient-to-r hover:from-slate-50 hover:via-emerald-50/20 hover:to-slate-50 text-slate-700'
+                      ? 'bg-gradient-to-r from-slate-50 via-emerald-50/50 to-slate-50 font-black text-slate-900 border-t-2 border-emerald-300' 
+                      : 'hover:bg-gradient-to-r hover:from-slate-50 hover:via-emerald-50/30 hover:to-slate-50 text-slate-700'
                   }`}
                 >
-                  <td className={`px-5 md:px-7 py-4 ${row.is_total ? 'text-base' : 'text-sm font-medium'}`}>
+                  <td className={`pl-2 pr-4 py-2 ${row.is_total ? 'text-sm' : 'text-sm font-semibold'}`}>
                     <div className="flex items-center gap-2">
                       {!row.is_total && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 opacity-60" />
+                        <div className="relative flex-shrink-0">
+                          <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full blur-sm opacity-50" />
+                          <div className="relative w-1.5 h-1.5 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-sm" />
+                        </div>
                       )}
-                      <span className={row.is_total ? 'uppercase tracking-wide' : ''}>{row.payment_method}</span>
+                      <span className={`${row.is_total ? 'uppercase tracking-wider' : 'capitalize'} font-bold`}>{row.payment_method}</span>
                     </div>
                   </td>
-                  <td className={`px-4 py-4 text-right tabular-nums ${row.is_total ? 'text-base' : 'text-sm'}`}>
-                    <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 group-hover/row:bg-blue-50 transition-colors">
+                  <td className="px-3 py-2 text-sm tabular-nums">
+                    <span className={`inline-block px-1.5 py-0.5 rounded-md font-bold transition-all duration-200 ${
+                      row.is_total
+                        ? 'bg-gradient-to-r from-slate-200 to-slate-300 text-slate-800 shadow-sm'
+                        : 'bg-slate-100 text-slate-700 group-hover/row:bg-blue-100 group-hover/row:text-blue-800 group-hover/row:shadow-sm'
+                    }`}>
                       {row.payment_transaction.toLocaleString()}
                     </span>
                   </td>
-                  <td className={`px-4 py-4 text-right tabular-nums ${row.is_total ? 'text-base' : 'text-sm'}`}>
-                    <span className={`inline-block px-2.5 py-1 rounded-md font-semibold ${
+                  <td className="px-3 py-2 text-sm tabular-nums">
+                    <span className={`inline-block px-2 py-0.5 rounded-md font-bold transition-all duration-200 ${
                       row.is_total 
-                        ? 'bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-800' 
-                        : 'bg-emerald-50 text-emerald-700 group-hover/row:bg-emerald-100 transition-colors'
+                        ? 'bg-gradient-to-r from-emerald-200 to-teal-200 text-emerald-900 shadow-md' 
+                        : 'bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-200/50 group-hover/row:from-emerald-100 group-hover/row:to-teal-100 group-hover/row:border-emerald-300 group-hover/row:shadow-sm'
                     }`}>
                       {formatPeso(row.payment_amount)}
                     </span>
                   </td>
-                  <td className={`px-4 py-4 text-right tabular-nums ${row.is_total ? 'text-base' : 'text-sm'}`}>
-                    <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 group-hover/row:bg-orange-50 transition-colors">
-                      {row.refund_transaction.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className={`px-4 py-4 text-right tabular-nums ${row.is_total ? 'text-base' : 'text-sm'}`}>
-                    <span className={`inline-block px-2.5 py-1 rounded-md font-semibold ${
+                  <td className={`pr-2 pl-4 py-2 text-right tabular-nums ${row.is_total ? 'text-base' : 'text-sm font-semibold'}`}>
+                    <span className={`inline-block px-2.5 py-1 rounded-lg font-black transition-all duration-200 ${
                       row.is_total 
-                        ? 'bg-gradient-to-r from-red-100 to-orange-100 text-red-800' 
-                        : row.refund_amount > 0
-                        ? 'bg-red-50 text-red-700 group-hover/row:bg-red-100 transition-colors'
-                        : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {formatPeso(row.refund_amount)}
-                    </span>
-                  </td>
-                  <td className={`px-5 md:px-7 py-4 text-right tabular-nums ${row.is_total ? 'text-base md:text-lg' : 'text-sm font-semibold'}`}>
-                    <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${
-                      row.is_total 
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg' 
-                        : 'bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-800 border border-emerald-200 group-hover/row:from-emerald-100 group-hover/row:to-teal-100 transition-all'
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30' 
+                        : 'bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-800 border-2 border-emerald-200 group-hover/row:from-emerald-100 group-hover/row:to-teal-100 group-hover/row:border-emerald-300 group-hover/row:shadow-md group-hover/row:scale-[1.02]'
                     }`}>
                       {formatPeso(row.net_amount)}
                     </span>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>
         
-        {/* Shine effect on hover */}
-        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
       </div>
 
       {/* (Temporarily removed) Inventory Health, Cost Analysis, Efficiency */}

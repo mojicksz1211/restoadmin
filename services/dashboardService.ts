@@ -316,7 +316,23 @@ export type PaymentMethodExportRow = {
 /** Sample data for Payment Methods (EXPORT) when API is not available */
 export const SAMPLE_PAYMENT_METHOD_EXPORT: PaymentMethodExportRow[] = [
   {
-    payment_method: 'Credit card',
+    payment_method: 'Cash',
+    payment_transaction: 1_145,
+    payment_amount: 4_321_394,
+    refund_transaction: 0,
+    refund_amount: 0,
+    net_amount: 4_321_394,
+  },
+  {
+    payment_method: 'Paymaya',
+    payment_transaction: 1,
+    payment_amount: 2_390,
+    refund_transaction: 0,
+    refund_amount: 0,
+    net_amount: 2_390,
+  },
+  {
+    payment_method: 'Credit Card',
     payment_transaction: 32,
     payment_amount: 117_384,
     refund_transaction: 0,
@@ -330,22 +346,6 @@ export const SAMPLE_PAYMENT_METHOD_EXPORT: PaymentMethodExportRow[] = [
     refund_transaction: 1,
     refund_amount: 280,
     net_amount: 540_688,
-  },
-  {
-    payment_method: 'Utang',
-    payment_transaction: 1,
-    payment_amount: 2_390,
-    refund_transaction: 0,
-    refund_amount: 0,
-    net_amount: 2_390,
-  },
-  {
-    payment_method: 'cash',
-    payment_transaction: 1_145,
-    payment_amount: 4_321_394,
-    refund_transaction: 0,
-    refund_amount: 0,
-    net_amount: 4_321_394,
   },
   {
     payment_method: 'Total',
@@ -440,4 +440,86 @@ export async function getBestsellerByPeriod(
     throw new Error(json.error || 'Failed to load bestseller by period');
   }
   return json.data.bestsellers;
+}
+
+type PaymentMethodSummaryItem = {
+  payment_method: string;
+  payment_transaction: number;
+  payment_amount: number;
+};
+
+type PaymentMethodSummaryResponse = {
+  summary: PaymentMethodSummaryItem[];
+};
+
+/**
+ * Fetch payment methods summary from backend.
+ * Returns transaction count and total amount per payment method.
+ * @param branchId - 'all' for all branches, or specific branch ID to filter
+ */
+export async function getPaymentMethodsSummary(
+  branchId: string | null
+): Promise<PaymentMethodExportRow[]> {
+  try {
+    const params: Record<string, string> = {};
+    if (branchId && branchId !== 'all') {
+      params.branch_id = branchId;
+    }
+
+    const response = await fetch(buildUrl('/dashboard/payment-methods-summary', params), {
+      credentials: 'include',
+      headers: authHeaders(),
+    });
+    const json = (await response.json()) as ApiResponse<PaymentMethodSummaryResponse>;
+    if (!response.ok || !json.success) {
+      throw new Error(json.error || 'Failed to load payment methods summary');
+    }
+
+    const summary = json.data?.summary || [];
+    
+    // Ensure all 4 payment methods are present (Cash, Paymaya, Credit Card, Gcash)
+    const requiredMethods = ['Cash', 'Paymaya', 'Credit Card', 'Gcash'];
+    const methodMap = new Map<string, PaymentMethodSummaryItem>();
+    
+    summary.forEach((item) => {
+      methodMap.set(item.payment_method, item);
+    });
+
+    // Build result with all required methods, defaulting to 0 if not found
+    const result: PaymentMethodExportRow[] = requiredMethods.map((method) => {
+      const item = methodMap.get(method);
+      return {
+        payment_method: method,
+        payment_transaction: item?.payment_transaction || 0,
+        payment_amount: item?.payment_amount || 0,
+        refund_transaction: 0,
+        refund_amount: 0,
+        net_amount: item?.payment_amount || 0,
+      };
+    });
+
+    // Calculate and add total row
+    const total = result.reduce(
+      (acc, row) => ({
+        payment_transaction: acc.payment_transaction + row.payment_transaction,
+        payment_amount: acc.payment_amount + row.payment_amount,
+        net_amount: acc.net_amount + row.net_amount,
+      }),
+      { payment_transaction: 0, payment_amount: 0, net_amount: 0 }
+    );
+
+    result.push({
+      payment_method: 'Total',
+      payment_transaction: total.payment_transaction,
+      payment_amount: total.payment_amount,
+      refund_transaction: 0,
+      refund_amount: 0,
+      net_amount: total.net_amount,
+      is_total: true,
+    });
+
+    return result;
+  } catch {
+    return SAMPLE_PAYMENT_METHOD_EXPORT;
+  }
 }
