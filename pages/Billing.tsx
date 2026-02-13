@@ -25,6 +25,7 @@ import {
   type PaymentTransaction,
   type UpdateBillingPayload,
 } from '../services/billingService';
+import { getOrders } from '../services/orderService';
 import { getBranches } from '../services/branchService';
 import type { BranchRecord } from '../types';
 
@@ -59,12 +60,37 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
+  const orderTableNumberMapRef = useRef<Map<number, string | null>>(new Map());
+  const orderTableNumberMapBranchRef = useRef<string | null>(null);
+
   const loadBillings = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await getBillings(selectedBranchId);
-      setBillings(Array.isArray(data) ? data : []);
+      const billingRows = Array.isArray(data) ? data : [];
+
+      // Fetch table numbers from orders list (same approach as Orders page)
+      let map = orderTableNumberMapRef.current;
+      const mapBranch = orderTableNumberMapBranchRef.current;
+      if (mapBranch !== selectedBranchId || map.size === 0) {
+        try {
+          const orders = await getOrders(selectedBranchId);
+          map = new Map<number, string | null>(
+            (Array.isArray(orders) ? orders : []).map((o) => [o.IDNo, o.TABLE_NUMBER ?? null])
+          );
+          orderTableNumberMapRef.current = map;
+          orderTableNumberMapBranchRef.current = selectedBranchId;
+        } catch {
+          // Non-blocking: Billing can still render without table numbers
+        }
+      }
+
+      const enriched = billingRows.map((b) => ({
+        ...b,
+        tableNumber: b.tableNumber ?? map.get(b.orderId) ?? null,
+      }));
+      setBillings(enriched);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load billing records');
       setBillings([]);
@@ -101,7 +127,8 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
   const filteredBillings = billings.filter((b) => {
     const matchSearch =
       b.orderNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      b.branchName?.toLowerCase().includes(searchTerm.toLowerCase());
+      b.branchName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      b.tableNumber?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchSearch;
   });
 
@@ -132,7 +159,16 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
         getBillingByOrderId(id),
         getPaymentHistory(id),
       ]);
-      setDetailBilling(billing ?? null);
+      const enrichedBilling = billing
+        ? {
+            ...billing,
+            tableNumber:
+              billing.tableNumber ??
+              orderTableNumberMapRef.current.get(orderId) ??
+              null,
+          }
+        : null;
+      setDetailBilling(enrichedBilling);
       setPaymentHistory(Array.isArray(history) ? history : []);
     } catch {
       setDetailBilling(null);
@@ -169,7 +205,16 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
         getBillingByOrderId(detailOrderId),
         getPaymentHistory(detailOrderId),
       ]);
-      setDetailBilling(billing ?? null);
+      const enrichedBilling = billing
+        ? {
+            ...billing,
+            tableNumber:
+              billing.tableNumber ??
+              orderTableNumberMapRef.current.get(Number(detailOrderId)) ??
+              null,
+          }
+        : null;
+      setDetailBilling(enrichedBilling);
       setPaymentHistory(Array.isArray(history) ? history : []);
       loadBillings();
     } catch (e) {
@@ -263,6 +308,7 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('order_no') || 'Order No'}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('table') || 'Table'}</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('branch')}</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('payment_method') || 'Payment Method'}</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('amount_due') || 'Amount Due'}</th>
@@ -277,7 +323,7 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center">
+                  <td colSpan={11} className="px-6 py-12 text-center">
                     <div className="flex items-center justify-center gap-2 text-slate-500">
                       <Loader2 className="w-6 h-6 animate-spin" />
                       <span>{t('loading')}</span>
@@ -286,7 +332,7 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
                 </tr>
               ) : paginatedBillings.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-16 text-center text-slate-500">
+                  <td colSpan={11} className="px-6 py-16 text-center text-slate-500">
                     <Receipt className="w-12 h-12 mx-auto mb-3 opacity-30" />
                     <p className="font-medium">{t('no_billing_found') || 'No billing records found.'}</p>
                     <p className="text-sm">{t('try_changing_filters') || 'Try changing filters or search.'}</p>
@@ -302,6 +348,9 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
                         </span>
                         <span className="font-bold text-slate-900">{b.orderNo}</span>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-800">
+                      {b.tableNumber || '—'}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {b.branchName || '—'}
@@ -429,6 +478,16 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
                       ? (t('enter_payment_details') || 'Enter payment details')
                       : (t('view_payment_details') || 'View and record payments')}
                   </p>
+                  {detailBilling && (
+                    <div className="mt-1">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700">
+                        <span className="uppercase tracking-wide">{t('table') || 'Table'}</span>
+                        <span className="text-sm font-extrabold text-orange-900">
+                          {detailBilling.tableNumber || '—'}
+                        </span>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
               <button
@@ -450,6 +509,18 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
                   /* Record Payment form only */
                   <>
                     <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          {t('table') || 'Table'}
+                        </span>
+                        <span
+                          className={`text-lg font-extrabold ${
+                            detailBilling.tableNumber ? 'text-orange-600' : 'text-slate-400'
+                          }`}
+                        >
+                          {detailBilling.tableNumber || '—'}
+                        </span>
+                      </div>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-slate-500">{t('amount_due') || 'Amount Due'}:</span>
                         <span className="font-bold text-slate-900">₱{Number(detailBilling.amountDue).toLocaleString()}</span>
@@ -554,6 +625,16 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
+                        <p className="text-xs font-bold text-slate-500 uppercase">{t('table') || 'Table'}</p>
+                        <p
+                          className={`text-2xl font-extrabold ${
+                            detailBilling.tableNumber ? 'text-orange-600' : 'text-slate-400'
+                          }`}
+                        >
+                          {detailBilling.tableNumber || '—'}
+                        </p>
+                      </div>
+                      <div>
                         <p className="text-xs font-bold text-slate-500 uppercase">{t('amount_due') || 'Amount Due'}</p>
                         <p className="text-xl font-bold text-slate-900">₱{Number(detailBilling.amountDue).toLocaleString()}</p>
                       </div>
@@ -595,6 +676,16 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
                   </>
                 )
               ) : null}
+            </div>
+            <div className="p-6 border-t border-slate-100 flex items-center justify-end bg-white">
+              <button
+                type="button"
+                onClick={closeDetail}
+                disabled={paymentSubmitting}
+                className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50"
+              >
+                OK
+              </button>
             </div>
           </div>
         </div>
