@@ -1291,7 +1291,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <p className="text-xs text-slate-400 mt-1">Sales data will appear here once orders are placed</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <ResponsiveContainer width="100%" height={288} minWidth={0} minHeight={280}>
                 <BarChart data={productSalesStackedChartData} margin={{ left: 8, right: 16, bottom: 32, top: 8 }}>
                   <defs>
                     {top5PopularMenuItems.map((item, idx) => {
