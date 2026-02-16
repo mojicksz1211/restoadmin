@@ -52,9 +52,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
   const [topBranchesData, setTopBranchesData] = useState<{ id: string; name: string; address: string | null; revenue: number }[]>([]);
-  const [branchComparisonData, setBranchComparisonData] = useState<{ name: string; [key: string]: string | number }[]>([]);
   const [branchComparisonLoading, setBranchComparisonLoading] = useState(true);
-  const [comparisonBranchNames, setComparisonBranchNames] = useState<string[]>([]);
   const [topBranchesLoading, setTopBranchesLoading] = useState(true);
   const [popularMenuItems, setPopularMenuItems] = useState<PopularMenuItem[]>([]);
   const [popularMenuItemsLoading, setPopularMenuItemsLoading] = useState(true);
@@ -66,6 +64,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [bestsellersLoading, setBestsellersLoading] = useState(true);
   const [paymentMethodsSummary, setPaymentMethodsSummary] = useState<PaymentMethodExportRow[]>([]);
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(true);
+  const [paymentMethodsDate, setPaymentMethodsDate] = useState<string>(() => 
+    new Date().toISOString().slice(0, 10)
+  );
 
   const [isKimsBrothersDashboard, setIsKimsBrothersDashboard] = useState<boolean>(false);
   const [isDaraejungBranch, setIsDaraejungBranch] = useState<boolean>(false);
@@ -166,19 +167,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   const STATIC_BRANCH_NAMES = ['BLUEMOON', 'DARAEJUNG', "KIMS BROTHER"];
 
-  const loadBranchComparison = useCallback(async () => {
-    if (selectedBranchId !== 'all') {
-      setBranchComparisonData([]);
-      setComparisonBranchNames([]);
-      setBranchComparisonLoading(false);
-      return;
-    }
-    
-    setBranchComparisonData(STATIC_BRANCH_COMPARISON_DATA);
-    setComparisonBranchNames(STATIC_BRANCH_NAMES);
-    setBranchComparisonLoading(false);
-  }, [selectedBranchId]);
-
   const loadPopularMenuItems = useCallback(async () => {
     setPopularMenuItemsLoading(true);
     try {
@@ -208,8 +196,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   }, [loadTopBranches]);
 
   useEffect(() => {
-    loadBranchComparison();
-  }, [loadBranchComparison]);
+    setBranchComparisonLoading(false);
+  }, [selectedBranchId]);
 
   useEffect(() => {
     loadPopularMenuItems();
@@ -248,14 +236,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const loadPaymentMethodsSummary = useCallback(async () => {
     setPaymentMethodsLoading(true);
     try {
-      const data = await getPaymentMethodsSummary(selectedBranchId);
+      const data = await getPaymentMethodsSummary(selectedBranchId, paymentMethodsDate, paymentMethodsDate);
       setPaymentMethodsSummary(data);
     } catch {
       setPaymentMethodsSummary(SAMPLE_PAYMENT_METHOD_EXPORT);
     } finally {
       setPaymentMethodsLoading(false);
     }
-  }, [selectedBranchId]);
+  }, [selectedBranchId, paymentMethodsDate]);
 
   useEffect(() => {
     if (isKimsBrothersDashboard) {
@@ -673,8 +661,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   {STATIC_BRANCH_NAMES.map((branchName, idx) => {
-                    // Colors matching the image: green for BLUEMOON, blue for DARAEJUNG, purple for KIMS BROTHER
-                    const colors = ['#10b981', '#3b82f6', '#a855f7']; // green, blue, purple
+                    const colors = ['#10b981', '#3b82f6', '#a855f7'];
                     return (
                       <div key={branchName} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colors[idx] }}></div>
@@ -693,23 +680,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 ) : (
                   <ResponsiveContainer width="100%" height={320} minWidth={0}>
                     <LineChart data={STATIC_BRANCH_COMPARISON_DATA}>
-                      <defs>
-                        {/* Branch 1 - Red/Orange gradient */}
-                        <linearGradient id="branch1Gradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />
-                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.8} />
-                        </linearGradient>
-                        {/* Branch 2 - Amber/Yellow gradient */}
-                        <linearGradient id="branch2Gradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
-                          <stop offset="100%" stopColor="#eab308" stopOpacity={0.8} />
-                        </linearGradient>
-                        {/* Branch 3 - Blue/Indigo gradient */}
-                        <linearGradient id="branch3Gradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
-                          <stop offset="100%" stopColor="#6366f1" stopOpacity={0.8} />
-                        </linearGradient>
-                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} strokeOpacity={0.5} />
                       <XAxis 
                         dataKey="name" 
@@ -745,14 +715,12 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                         iconType="circle"
                         formatter={(value) => <span style={{ fontWeight: 600, fontSize: '12px' }}>{value}</span>}
                       />
-                      {/* Always show 3 branches with static data - Colors: green, blue, purple */}
                       {STATIC_BRANCH_NAMES.map((branchName, idx) => {
-                        // Colors matching the image: green for BLUEMOON, blue for DARAEJUNG, purple for KIMS BROTHER
-                        const colors = ['#10b981', '#3b82f6', '#a855f7']; // green, blue, purple
+                        const colors = ['#10b981', '#3b82f6', '#a855f7'];
                         const rgbValues = [
-                          { r: 16, g: 185, b: 129 },   // green
-                          { r: 59, g: 130, b: 246 },   // blue
-                          { r: 168, g: 85, b: 247 }    // purple
+                          { r: 16, g: 185, b: 129 },
+                          { r: 59, g: 130, b: 246 },
+                          { r: 168, g: 85, b: 247 }
                         ];
                         return (
                           <Line 
@@ -1487,12 +1455,39 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-emerald-100/40 to-teal-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-36 h-36 bg-gradient-to-tr from-cyan-100/30 to-teal-100/30 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
         
-        <div className="relative flex items-center justify-between mb-5">
+        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('payment_methods_summary')}</h2>
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 rounded-xl blur-md opacity-40" />
-            <div className="relative bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-2.5 rounded-xl shadow-lg">
-              <ShoppingBag className="w-5 h-5 text-white drop-shadow-md" />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <label htmlFor="payment-methods-date" className="text-xs font-semibold text-slate-600 whitespace-nowrap">
+                Date:
+              </label>
+              <input
+                id="payment-methods-date"
+                type="date"
+                value={paymentMethodsDate}
+                onChange={(e) => {
+                  setPaymentMethodsDate(e.target.value);
+                }}
+                max={new Date().toISOString().slice(0, 10)}
+                className="px-3 py-1.5 text-sm border-2 border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-900 font-medium transition-all"
+              />
+              {paymentMethodsDate !== new Date().toISOString().slice(0, 10) && (
+                <button
+                  onClick={() => {
+                    setPaymentMethodsDate(new Date().toISOString().slice(0, 10));
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-sm hover:shadow-md"
+                >
+                  Today
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 rounded-xl blur-md opacity-40" />
+              <div className="relative bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-2.5 rounded-xl shadow-lg">
+                <ShoppingBag className="w-5 h-5 text-white drop-shadow-md" />
+              </div>
             </div>
           </div>
         </div>

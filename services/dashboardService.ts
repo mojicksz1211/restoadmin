@@ -511,14 +511,24 @@ type PaymentMethodSummaryResponse = {
  * Fetch payment methods summary from backend.
  * Returns transaction count and total amount per payment method.
  * @param branchId - 'all' for all branches, or specific branch ID to filter
+ * @param startDate - Optional start date (YYYY-MM-DD). If not provided, defaults to today
+ * @param endDate - Optional end date (YYYY-MM-DD). If not provided, defaults to startDate or today
  */
 export async function getPaymentMethodsSummary(
-  branchId: string | null
+  branchId: string | null,
+  startDate?: string | null,
+  endDate?: string | null
 ): Promise<PaymentMethodExportRow[]> {
   try {
     const params: Record<string, string> = {};
     if (branchId && branchId !== 'all') {
       params.branch_id = branchId;
+    }
+    if (startDate) {
+      params.start_date = startDate;
+    }
+    if (endDate) {
+      params.end_date = endDate;
     }
 
     const response = await fetch(buildUrl('/dashboard/payment-methods-summary', params), {
