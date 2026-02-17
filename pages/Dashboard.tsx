@@ -14,6 +14,11 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
+import { 
+  StatCardSkeleton, 
+  ChartLoadingSkeleton,
+  TableSkeleton
+} from '../components/LoadingSkeletons';
 import { MOCK_BRANCHES, SALES_CHART_DATA } from '../constants';
 import { getAIInsights, type AIAnalysisResult } from '../services/geminiService';
 import {
@@ -35,6 +40,7 @@ import {
   type DailySalesByProductItem,
 } from '../services/dashboardService';
 import { getBranches } from '../services/branchService';
+import { withMinimumDelay } from '../utils/loadingDelay';
 
 interface DashboardProps {
   selectedBranchId: string;
@@ -74,7 +80,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const res = await getDashboardStats(selectedBranchId);
+      const res = await withMinimumDelay(getDashboardStats(selectedBranchId), 1000);
       setStats(res.stats);
       setCurrentBranch(res.currentBranch);
       setBranchName(res.currentBranch?.BRANCH_NAME ?? 'All Branches');
@@ -98,8 +104,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const loadChart = useCallback(async () => {
     setChartLoading(true);
     setChartError(null);
+    setChartData([]);
     try {
-      const res = await getRevenueReport(selectedBranchId, 7);
+      const res = await withMinimumDelay(getRevenueReport(selectedBranchId, 7), 1000);
       setChartData(revenueReportToChartData(res.data));
     } catch (err) {
       setChartError(err instanceof Error ? err.message : 'Failed to load revenue chart');
@@ -119,12 +126,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   const loadKpis = useCallback(async () => {
     setKpisLoading(true);
+    setKpis(null);
     try {
       const branch = selectedBranchId === 'all' ? null : MOCK_BRANCHES.find((x) => x.id === selectedBranchId);
       const totalExpense = branch
         ? branch.expenses.labor + branch.expenses.cogs + branch.expenses.operational
         : MOCK_BRANCHES.reduce((acc, curr) => acc + curr.expenses.labor + curr.expenses.cogs + curr.expenses.operational, 0);
-      const data = await getDashboardKpis(selectedBranchId, { totalExpense });
+      const data = await withMinimumDelay(getDashboardKpis(selectedBranchId, { totalExpense }), 1000);
       setKpis(data);
     } catch {
       setKpis(null);
@@ -140,14 +148,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const loadTopBranches = useCallback(async () => {
     setTopBranchesLoading(true);
     try {
-      const branches = await getBranches();
-      const withRevenue = await Promise.all(
-        branches.map(async (b) => {
-          const res = await getDashboardStats(b.id);
-          return { id: b.id, name: b.name, address: b.address, revenue: res.stats.todaysRevenue };
-        })
-      );
-      const sorted = withRevenue.sort((a, b) => b.revenue - a.revenue).slice(0, 4);
+      const loadData = async () => {
+        const branches = await getBranches();
+        const withRevenue = await Promise.all(
+          branches.map(async (b) => {
+            const res = await getDashboardStats(b.id);
+            return { id: b.id, name: b.name, address: b.address, revenue: res.stats.todaysRevenue };
+          })
+        );
+        return withRevenue.sort((a, b) => b.revenue - a.revenue).slice(0, 4);
+      };
+      const sorted = await withMinimumDelay(loadData(), 1000);
       setTopBranchesData(sorted);
     } catch {
       setTopBranchesData([]);
@@ -169,8 +180,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   const loadPopularMenuItems = useCallback(async () => {
     setPopularMenuItemsLoading(true);
+    setPopularMenuItems([]);
     try {
-      const res = await getPopularMenuItems(selectedBranchId, 30, 5);
+      const res = await withMinimumDelay(getPopularMenuItems(selectedBranchId, 30, 5), 1000);
       setPopularMenuItems(res.data);
     } catch {
       setPopularMenuItems([]);
@@ -181,8 +193,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   const loadDailySalesByProduct = useCallback(async () => {
     setDailySalesLoading(true);
+    setDailySalesByProduct([]);
     try {
-      const data = await getDailySalesByProduct(selectedBranchId, 30, 5);
+      const data = await withMinimumDelay(getDailySalesByProduct(selectedBranchId, 30, 5), 1000);
       setDailySalesByProduct(data);
     } catch {
       setDailySalesByProduct([]);
@@ -214,7 +227,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     }));
     
     try {
-      const data = await getBestsellerByPeriod(selectedBranchId);
+      const data = await withMinimumDelay(getBestsellerByPeriod(selectedBranchId), 1000);
       const result = periods.map(period => 
         data.find(item => item.period === period) || 
         defaultPeriods.find(p => p.period === period)!
@@ -235,8 +248,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   const loadPaymentMethodsSummary = useCallback(async () => {
     setPaymentMethodsLoading(true);
+    setPaymentMethodsSummary([]);
     try {
-      const data = await getPaymentMethodsSummary(selectedBranchId, paymentMethodsDate, paymentMethodsDate);
+      const data = await withMinimumDelay(getPaymentMethodsSummary(selectedBranchId, paymentMethodsDate, paymentMethodsDate), 1000);
       setPaymentMethodsSummary(data);
     } catch {
       setPaymentMethodsSummary(SAMPLE_PAYMENT_METHOD_EXPORT);
@@ -415,14 +429,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {statsLoading ? (
           [...Array(4)].map((_, i) => (
-            <div key={i} className="relative bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex items-center justify-between overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-50/50 to-transparent animate-pulse" />
-              <div className="relative flex-1">
-                <div className="h-4 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-20 mb-2 animate-pulse" />
-                <div className="h-8 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-28 animate-pulse" />
-              </div>
-              <div className="relative w-14 h-14 bg-gradient-to-br from-slate-200 to-slate-300 rounded-xl animate-pulse" />
-            </div>
+            <StatCardSkeleton key={i} />
           ))
         ) : stats ? (
           <>
@@ -497,14 +504,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
             {statsLoading ? (
               [...Array(4)].map((_, i) => (
-                <div key={i} className="relative bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex items-center justify-between overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-50/50 to-transparent animate-pulse" />
-                  <div className="relative flex-1">
-                    <div className="h-4 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-20 mb-2 animate-pulse" />
-                    <div className="h-8 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-28 animate-pulse" />
-                  </div>
-                  <div className="relative w-14 h-14 bg-gradient-to-br from-slate-200 to-slate-300 rounded-xl animate-pulse" />
-                </div>
+                <StatCardSkeleton key={i} />
               ))
             ) : stats ? (
               <>
@@ -674,9 +674,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               
               <div className="relative h-80 min-h-[320px] z-10">
                 {branchComparisonLoading || chartLoading ? (
-                  <div className="w-full h-full flex items-center justify-center text-slate-400">
-                    <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-                  </div>
+                  <ChartLoadingSkeleton type="line" />
                 ) : (
                   <ResponsiveContainer width="100%" height={320} minWidth={0}>
                     <LineChart data={STATIC_BRANCH_COMPARISON_DATA}>
@@ -767,9 +765,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 
                 <div className="space-y-3 flex-1 overflow-y-auto pr-2 max-h-[calc(100%-100px)]">
                   {topBranchesLoading ? (
-                    <div className="flex items-center justify-center py-12 text-slate-400">
-                      <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-                    </div>
+                    <TableSkeleton rows={3} />
                   ) : (
                     topBranchesData.map((branch, idx) => (
                       <div 
@@ -821,14 +817,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
         {kpisLoading ? (
           [...Array(5)].map((_, i) => (
-            <div key={i} className="relative bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex items-center justify-between overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-50/50 to-transparent animate-pulse" />
-              <div className="relative flex-1">
-                <div className="h-4 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-20 mb-2 animate-pulse" />
-                <div className="h-8 bg-gradient-to-r from-slate-200 to-slate-300 rounded w-28 animate-pulse" />
-              </div>
-              <div className="relative w-14 h-14 bg-gradient-to-br from-slate-200 to-slate-300 rounded-xl animate-pulse" />
-            </div>
+            <StatCardSkeleton key={i} />
           ))
         ) : kpis ? (
           <>
@@ -977,9 +966,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             {/* Shine effect on hover */}
             <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent z-10 pointer-events-none" />
             {chartLoading ? (
-              <div className="w-full h-full flex items-center justify-center text-slate-400">
-                <Loader2 className="w-8 h-8 animate-spin" />
-              </div>
+              <ChartLoadingSkeleton type="bar" />
             ) : (
               <ResponsiveContainer width="100%" height={320} minWidth={0}>
                 <BarChart data={displayedSalesChartData}>
@@ -1047,9 +1034,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           </div>
           <div className="relative space-y-3">
             {bestsellersLoading ? (
-              <div className="flex items-center justify-center py-8 text-slate-400">
-                <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-              </div>
+              <TableSkeleton rows={3} />
             ) : (
               bestsellersByPeriod.map((item, index) => {
                 const periodStyles = {
@@ -1281,9 +1266,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent z-10 pointer-events-none" />
             
             {popularMenuItemsLoading || dailySalesLoading ? (
-              <div className="w-full h-full flex items-center justify-center text-slate-400">
-                <Loader2 className="w-8 h-8 animate-spin" />
-              </div>
+              <ChartLoadingSkeleton type="stacked" />
             ) : productSalesStackedChartData.length === 0 || !top5PopularMenuItems || top5PopularMenuItems.length === 0 ? (
               <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
                 <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
@@ -1514,11 +1497,22 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             </thead>
             <tbody className="divide-y divide-slate-100/40">
               {paymentMethodsLoading ? (
-                <tr>
-                  <td colSpan={4} className="px-3 py-8 text-center text-slate-400">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto" />
-                  </td>
-                </tr>
+                [...Array(4)].map((_, i) => (
+                  <tr key={i}>
+                    <td className="pl-2 pr-4 py-3">
+                      <div className="h-4 w-24 rounded bg-slate-200/60 animate-pulse" />
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="h-4 w-16 rounded bg-slate-200/60 animate-pulse mx-auto" style={{ animationDelay: '0.1s' }} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="h-4 w-20 rounded bg-slate-200/60 animate-pulse mx-auto" style={{ animationDelay: '0.2s' }} />
+                    </td>
+                    <td className="pr-2 pl-4 py-3 text-right">
+                      <div className="h-4 w-20 rounded bg-slate-200/60 animate-pulse ml-auto" style={{ animationDelay: '0.3s' }} />
+                    </td>
+                  </tr>
+                ))
               ) : (
                 paymentMethodsSummary.map((row) => (
                 <tr
