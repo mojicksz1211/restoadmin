@@ -92,7 +92,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [kimsBrotherChartTypeDropdownOpen, setKimsBrotherChartTypeDropdownOpen] = useState<boolean>(false);
   const [kimsBrotherChartPeriodDropdownOpen, setKimsBrotherChartPeriodDropdownOpen] = useState<boolean>(false);
   const kimsBrotherDatePickerRef = useRef<HTMLInputElement>(null);
-  const kimsBrotherFlatpickrInstance = useRef<flatpickr.Instance | null>(null);
+  const kimsBrotherFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
   
   // Total Sales Detail Modal
   const [totalSalesDetailModalOpen, setTotalSalesDetailModalOpen] = useState<boolean>(false);
