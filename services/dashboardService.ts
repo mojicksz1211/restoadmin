@@ -570,6 +570,86 @@ export async function importDiscountReport(
   return json.data ?? { inserted: 0 };
 }
 
+// --- Sales by Category Report (sales_category_report table) ---
+
+export type SalesCategoryReportRow = {
+  category: string;
+  sales_quantity: number;
+  net_sales: number;
+  unit_cost: number;
+  total_revenue: number;
+};
+
+type SalesCategoryReportResponse = {
+  start_date: string | null;
+  end_date: string | null;
+  branch_id: string | null;
+  data: SalesCategoryReportRow[];
+};
+
+/**
+ * Fetch sales by category report from backend (sales_category_report table).
+ * @param branchId - 'all' or specific branch ID
+ * @param startDate - Optional start date (YYYY-MM-DD)
+ * @param endDate - Optional end date (YYYY-MM-DD)
+ */
+export async function getSalesCategoryReport(
+  branchId: string | null,
+  startDate?: string | null,
+  endDate?: string | null
+): Promise<SalesCategoryReportRow[]> {
+  const params: Record<string, string> = {};
+  if (branchId && branchId !== 'all') {
+    params.branch_id = branchId;
+  }
+  if (startDate) {
+    params.start_date = startDate;
+  }
+  if (endDate) {
+    params.end_date = endDate;
+  }
+
+  const response = await fetch(buildUrl('/reports/sales-category', params), {
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+  const json = (await response.json()) as ApiResponse<SalesCategoryReportResponse>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to load sales by category report');
+  }
+  return json.data?.data ?? [];
+}
+
+/**
+ * Import sales category data into sales_category_report table.
+ * @param rows - Array of { category, sales_quantity, net_sales, unit_cost, total_revenue }
+ */
+export async function importSalesCategoryReport(
+  rows: Array<{
+    category?: string;
+    sales_quantity?: number;
+    quantity?: number;
+    net_sales?: number;
+    unit_cost?: number;
+    total_revenue?: number;
+  }>
+): Promise<{ inserted: number }> {
+  const response = await fetch(buildUrl('/reports/sales-category/import'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      ...authHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ data: rows }),
+  });
+  const json = (await response.json()) as ApiResponse<{ inserted: number }>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to import sales category report');
+  }
+  return json.data ?? { inserted: 0 };
+}
+
 // --- Payment method export summary (EXPORT table) ---
 
 export type PaymentMethodExportRow = {

@@ -38,6 +38,8 @@ import {
   importSalesHourlySummary,
   getReceipts,
   importReceipts,
+  getSalesCategoryReport,
+  importSalesCategoryReport,
   SAMPLE_POPULAR_MENU_ITEMS,
   SAMPLE_PAYMENT_METHOD_EXPORT,
   type PaymentMethodExportRow,
@@ -128,8 +130,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   );
   const [salesByCategoryPage, setSalesByCategoryPage] = useState<number>(1);
   const [salesByCategoryPageSize, setSalesByCategoryPageSize] = useState<number>(10);
-  const [salesByCategoryEmployeeFilter, setSalesByCategoryEmployeeFilter] = useState<string>('all');
-  const [salesByCategoryEmployeeDropdownOpen, setSalesByCategoryEmployeeDropdownOpen] = useState<boolean>(false);
+  const [salesByCategoryImportLoading, setSalesByCategoryImportLoading] = useState<boolean>(false);
+  const salesByCategoryImportInputRef = useRef<HTMLInputElement>(null);
 
   // Discount Report Modal
   const [discountModalOpen, setDiscountModalOpen] = useState<boolean>(false);
@@ -620,42 +622,25 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setSalesByCategoryLoading(true);
     setSalesByCategoryData([]);
     try {
-      // TODO: Create backend API endpoint for sales by category - dates passed for when API is ready
-      const baseData = [
-        { category: 'A-ADDITIONAL', quantity: 595, net_sales: 227944, unit_cost: 0, total_revenue: 227944 },
-        { category: 'B-BEEF', quantity: 1470, net_sales: 504870, unit_cost: 0, total_revenue: 504870 },
-        { category: 'Basic meat set', quantity: 0, net_sales: 0, unit_cost: 0, total_revenue: 0 },
-        { category: 'D-BAR SNACKS', quantity: 119, net_sales: 69780, unit_cost: 0, total_revenue: 69780 },
-        { category: 'DRINKS', quantity: 4051, net_sales: 727596, unit_cost: 0, total_revenue: 727596 },
-        { category: 'H-HOT POT', quantity: 99, net_sales: 98020, unit_cost: 0, total_revenue: 98020 },
-        { category: 'I-Iberico PORK', quantity: 1574, net_sales: 1068008, unit_cost: 0, total_revenue: 1068008 },
-        { category: 'K-Aged Preium Pork', quantity: 1017, net_sales: 608280, unit_cost: 0, total_revenue: 608280 },
-        { category: 'K-KIDS MENU', quantity: 16, net_sales: 4740, unit_cost: 0, total_revenue: 4740 },
-        { category: 'M-MEAL', quantity: 575, net_sales: 234407.20, unit_cost: 0, total_revenue: 234407.20 },
-        { category: 'N-NOODLE', quantity: 216, net_sales: 64924, unit_cost: 0, total_revenue: 64924 },
-        { category: 'Nalchial Jumeokbab Set', quantity: 781, net_sales: 0, unit_cost: 0, total_revenue: 0 },
-        { category: 'Service', quantity: 1328, net_sales: 0, unit_cost: 0, total_revenue: 0 },
-        { category: 'SET Meat', quantity: 792, net_sales: 1702760, unit_cost: 0, total_revenue: 1702760 },
-      ];
-      const start = new Date(salesByCategoryDateStart);
-      const end = new Date(salesByCategoryDateEnd);
-      const daysInRange = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-      const scaleFactor = daysInRange / 30;
-      const mockData = baseData.map(row => ({
-        ...row,
-        quantity: Math.round(row.quantity * scaleFactor),
-        net_sales: Math.round(row.net_sales * scaleFactor),
-        total_revenue: Math.round(row.total_revenue * scaleFactor),
+      const result = await withMinimumDelay(
+        getSalesCategoryReport(selectedBranchId, salesByCategoryDateStart, salesByCategoryDateEnd),
+        500
+      );
+      // Map the API response to match the expected format
+      const mappedData = result.map(row => ({
+        category: row.category || '',
+        quantity: row.sales_quantity || 0,
+        net_sales: row.net_sales || 0,
+        unit_cost: row.unit_cost || 0,
+        total_revenue: row.total_revenue || 0,
       }));
-      
-      const result = await withMinimumDelay(Promise.resolve(mockData), 500);
-      setSalesByCategoryData(result);
+      setSalesByCategoryData(mappedData);
     } catch (err) {
       setSalesByCategoryData([]);
     } finally {
       setSalesByCategoryLoading(false);
     }
-  }, [selectedBranchId, salesByCategoryDateStart, salesByCategoryDateEnd, salesByCategoryEmployeeFilter]);
+  }, [selectedBranchId, salesByCategoryDateStart, salesByCategoryDateEnd]);
 
   // Load data when modal opens or filters change
   useEffect(() => {
@@ -663,17 +648,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       loadSalesByCategory();
       setSalesByCategoryPage(1);
     }
-  }, [salesByCategoryModalOpen, salesByCategoryDateStart, salesByCategoryDateEnd, salesByCategoryEmployeeFilter, loadSalesByCategory]);
+  }, [salesByCategoryModalOpen, salesByCategoryDateStart, salesByCategoryDateEnd, loadSalesByCategory]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (salesByCategoryEmployeeDropdownOpen) {
-        const target = e.target as HTMLElement;
-        if (!target.closest('.employee-filter-dropdown')) {
-          setSalesByCategoryEmployeeDropdownOpen(false);
-        }
-      }
       if (discountEmployeeDropdownOpen) {
         const target = e.target as HTMLElement;
         if (!target.closest('.discount-employee-filter-dropdown')) {
@@ -689,7 +668,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [salesByCategoryEmployeeDropdownOpen, discountEmployeeDropdownOpen, receiptEmployeeDropdownOpen]);
+  }, [discountEmployeeDropdownOpen, receiptEmployeeDropdownOpen]);
 
   const loadDiscountReport = useCallback(async () => {
     setDiscountLoading(true);
@@ -2385,6 +2364,99 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   <Download className="w-4 h-4" />
                   <span>EXPORT</span>
                 </button>
+
+                {/* IMPORT Button */}
+                <input
+                  ref={salesByCategoryImportInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setSalesByCategoryImportLoading(true);
+                    try {
+                      let text = await file.text();
+                      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+                      const lines = text.split(/\r?\n/).filter(Boolean);
+                      if (lines.length < 2) {
+                        alert('CSV must have header row plus at least one data row. Format: Category, Sales quantity, Net sales, Unit cost, Total Revenue');
+                        return;
+                      }
+                      const byComma = lines[0].split(',');
+                      const bySemi = lines[0].split(';');
+                      const byTab = lines[0].split('\t');
+                      const delim = byTab.length > bySemi.length && byTab.length > byComma.length ? '\t' : bySemi.length > byComma.length ? ';' : ',';
+                      const splitCsvRow = (line: string, d: string): string[] => {
+                        if (d !== ',') return line.split(d).map(c => c.trim().replace(/^["']|["']$/g, ''));
+                        const out: string[] = [];
+                        let cur = '';
+                        let inQuotes = false;
+                        for (let i = 0; i < line.length; i++) {
+                          const c = line[i];
+                          if (c === '"') inQuotes = !inQuotes;
+                          else if (c === d && !inQuotes) {
+                            out.push(cur.trim().replace(/^["']|["']$/g, ''));
+                            cur = '';
+                          } else cur += c;
+                        }
+                        out.push(cur.trim().replace(/^["']|["']$/g, ''));
+                        return out;
+                      };
+                      const parseNum = (val: string) => parseFloat((val ?? '0').toString().replace(/^P\s*/i, '').replace(/,/g, '')) || 0;
+                      const headers = splitCsvRow(lines[0], delim).map(h => h.trim().toLowerCase().replace(/^["']|["']$/g, ''));
+                      const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+                      const col = (candidates: string[], fallback: number) => {
+                        for (const c of candidates) {
+                          const nc = norm(c);
+                          const idx = headers.findIndex(h => norm(h) === nc || norm(h).includes(nc) || nc.includes(norm(h)));
+                          if (idx >= 0) return idx;
+                        }
+                        return fallback;
+                      };
+                      const categoryIdx = col(['category'], 0);
+                      const quantityIdx = col(['sales_quantity', 'sales quantity', 'quantity'], 1);
+                      const netSalesIdx = col(['net_sales', 'net sales'], 2);
+                      const unitCostIdx = col(['unit_cost', 'unit cost'], 3);
+                      const totalRevenueIdx = col(['total_revenue', 'total revenue'], 4);
+                      const rows: Array<{ category: string; sales_quantity: number; net_sales: number; unit_cost: number; total_revenue: number }> = [];
+                      for (let i = 1; i < lines.length; i++) {
+                        const cells = splitCsvRow(lines[i], delim);
+                        const category = (cells[categoryIdx] ?? '').trim();
+                        if (!category) continue;
+                        const salesQuantity = parseInt(cells[quantityIdx] ?? '0', 10) || 0;
+                        const netSales = parseNum(cells[netSalesIdx] ?? '0');
+                        const unitCost = parseNum(cells[unitCostIdx] ?? '0');
+                        const totalRevenue = parseNum(cells[totalRevenueIdx] ?? '0');
+                        rows.push({ category, sales_quantity: salesQuantity, net_sales: netSales, unit_cost: unitCost, total_revenue: totalRevenue });
+                      }
+                      if (rows.length === 0) {
+                        alert('No valid rows to import. Ensure column order: Category, Sales quantity, Net sales, Unit cost, Total Revenue');
+                        return;
+                      }
+                      const result = await importSalesCategoryReport(rows);
+                      alert(`Successfully imported ${result.inserted} record(s).`);
+                      loadSalesByCategory();
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Failed to import');
+                    } finally {
+                      setSalesByCategoryImportLoading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => salesByCategoryImportInputRef.current?.click()}
+                  disabled={salesByCategoryImportLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-bold rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {salesByCategoryImportLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  <span>IMPORT</span>
+                </button>
                 
                 {/* Title Section */}
                 <div className="flex items-center gap-3">
@@ -2448,67 +2520,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   >
                     Last 30 Days
                   </button>
-                  
-                  {/* Employee Filter Dropdown */}
-                  <div className="relative employee-filter-dropdown ml-auto">
-                    <button
-                      type="button"
-                      onClick={() => setSalesByCategoryEmployeeDropdownOpen(!salesByCategoryEmployeeDropdownOpen)}
-                      className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-all text-sm font-medium text-slate-700"
-                    >
-                      <User className="w-4 h-4 text-slate-500" />
-                      <span>
-                        {salesByCategoryEmployeeFilter === 'all' ? 'All employees' : 'Operator'}
-                      </span>
-                      <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${salesByCategoryEmployeeDropdownOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    
-                    {salesByCategoryEmployeeDropdownOpen && (
-                      <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-50 min-w-[200px]">
-                        <div className="p-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSalesByCategoryEmployeeFilter('all');
-                              setSalesByCategoryEmployeeDropdownOpen(false);
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-50 transition-colors text-left"
-                          >
-                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                              salesByCategoryEmployeeFilter === 'all' 
-                                ? 'bg-emerald-500 border-emerald-500' 
-                                : 'border-slate-300'
-                            }`}>
-                              {salesByCategoryEmployeeFilter === 'all' && (
-                                <Check className="w-3 h-3 text-white" />
-                              )}
-                            </div>
-                            <span className="text-sm font-medium text-slate-700">All employees</span>
-                          </button>
-                          
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSalesByCategoryEmployeeFilter('operator');
-                              setSalesByCategoryEmployeeDropdownOpen(false);
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-50 transition-colors text-left"
-                          >
-                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                              salesByCategoryEmployeeFilter === 'operator' 
-                                ? 'bg-emerald-500 border-emerald-500' 
-                                : 'border-slate-300'
-                            }`}>
-                              {salesByCategoryEmployeeFilter === 'operator' && (
-                                <Check className="w-3 h-3 text-white" />
-                              )}
-                            </div>
-                            <span className="text-sm font-medium text-slate-700">Operator</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
 
@@ -2564,27 +2575,27 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                                   <div className="relative flex-shrink-0">
                                     <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-purple-500 to-pink-600" />
                                   </div>
-                                  <span className="font-bold text-slate-900">{row.category || row.CATEGORY || '—'}</span>
+                                  <span className="font-bold text-slate-900">{row.category || '—'}</span>
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-sm tabular-nums">
                                 <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-100 text-slate-700 group-hover/row:bg-blue-100 group-hover/row:text-blue-800 transition-all">
-                                  {Number(row.quantity || row.QUANTITY || 0).toLocaleString()}
+                                  {Number(row.quantity || 0).toLocaleString()}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-sm tabular-nums">
                                 <span className="inline-block px-2 py-1 rounded-md font-bold bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 border border-purple-200/50 group-hover/row:from-purple-100 group-hover/row:to-pink-100 group-hover/row:border-purple-300 transition-all">
-                                  {formatPeso(row.net_sales || row.NET_SALES || 0)}
+                                  {formatPeso(row.net_sales || 0)}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-sm tabular-nums">
                                 <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-50 text-slate-600 border border-slate-200">
-                                  {formatPeso(row.unit_cost || row.UNIT_COST || 0)}
+                                  {formatPeso(row.unit_cost || 0)}
                                 </span>
                               </td>
                               <td className="pr-4 pl-6 py-3 text-right tabular-nums text-sm font-semibold">
                                 <span className="inline-block px-2.5 py-1 rounded-lg font-black bg-gradient-to-r from-purple-50 to-pink-50 text-purple-800 border-2 border-purple-200 group-hover/row:from-purple-100 group-hover/row:to-pink-100 group-hover/row:border-purple-300 group-hover/row:shadow-md transition-all">
-                                  {formatPeso(row.total_revenue || row.TOTAL_REVENUE || 0)}
+                                  {formatPeso(row.total_revenue || 0)}
                                 </span>
                               </td>
                             </tr>
