@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.40.0",
+    "flatpickr": "^4.6.13",
     "i18next": "^25.8.4",
     "i18next-browser-languagedetector": "^8.2.0",
     "lucide-react": "^0.563.0",
