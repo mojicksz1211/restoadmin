@@ -130,6 +130,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   );
   const [salesByCategoryPage, setSalesByCategoryPage] = useState<number>(1);
   const [salesByCategoryPageSize, setSalesByCategoryPageSize] = useState<number>(10);
+  const [salesByCategoryEmployeeFilter, setSalesByCategoryEmployeeFilter] = useState<string>('all');
+  const [salesByCategoryEmployeeDropdownOpen, setSalesByCategoryEmployeeDropdownOpen] = useState<boolean>(false);
   const [salesByCategoryImportLoading, setSalesByCategoryImportLoading] = useState<boolean>(false);
   const salesByCategoryImportInputRef = useRef<HTMLInputElement>(null);
 
@@ -633,6 +635,12 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         net_sales: row.net_sales || 0,
         unit_cost: row.unit_cost || 0,
         total_revenue: row.total_revenue || 0,
+        // Also include uppercase keys for compatibility
+        CATEGORY: row.category || '',
+        QUANTITY: row.sales_quantity || 0,
+        NET_SALES: row.net_sales || 0,
+        UNIT_COST: row.unit_cost || 0,
+        TOTAL_REVENUE: row.total_revenue || 0,
       }));
       setSalesByCategoryData(mappedData);
     } catch (err) {
@@ -640,7 +648,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     } finally {
       setSalesByCategoryLoading(false);
     }
-  }, [selectedBranchId, salesByCategoryDateStart, salesByCategoryDateEnd]);
+  }, [selectedBranchId, salesByCategoryDateStart, salesByCategoryDateEnd, salesByCategoryEmployeeFilter]);
 
   // Load data when modal opens or filters change
   useEffect(() => {
@@ -648,11 +656,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       loadSalesByCategory();
       setSalesByCategoryPage(1);
     }
-  }, [salesByCategoryModalOpen, salesByCategoryDateStart, salesByCategoryDateEnd, loadSalesByCategory]);
+  }, [salesByCategoryModalOpen, salesByCategoryDateStart, salesByCategoryDateEnd, salesByCategoryEmployeeFilter, loadSalesByCategory]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      if (salesByCategoryEmployeeDropdownOpen) {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.employee-filter-dropdown')) {
+          setSalesByCategoryEmployeeDropdownOpen(false);
+        }
+      }
       if (discountEmployeeDropdownOpen) {
         const target = e.target as HTMLElement;
         if (!target.closest('.discount-employee-filter-dropdown')) {
@@ -668,7 +682,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [discountEmployeeDropdownOpen, receiptEmployeeDropdownOpen]);
+  }, [salesByCategoryEmployeeDropdownOpen, discountEmployeeDropdownOpen, receiptEmployeeDropdownOpen]);
 
   const loadDiscountReport = useCallback(async () => {
     setDiscountLoading(true);
@@ -2520,6 +2534,67 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   >
                     Last 30 Days
                   </button>
+                  
+                  {/* Employee Filter Dropdown */}
+                  <div className="relative employee-filter-dropdown ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => setSalesByCategoryEmployeeDropdownOpen(!salesByCategoryEmployeeDropdownOpen)}
+                      className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-all text-sm font-medium text-slate-700"
+                    >
+                      <User className="w-4 h-4 text-slate-500" />
+                      <span>
+                        {salesByCategoryEmployeeFilter === 'all' ? 'All employees' : 'Operator'}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${salesByCategoryEmployeeDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {salesByCategoryEmployeeDropdownOpen && (
+                      <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-50 min-w-[200px]">
+                        <div className="p-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSalesByCategoryEmployeeFilter('all');
+                              setSalesByCategoryEmployeeDropdownOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-50 transition-colors text-left"
+                          >
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                              salesByCategoryEmployeeFilter === 'all' 
+                                ? 'bg-emerald-500 border-emerald-500' 
+                                : 'border-slate-300'
+                            }`}>
+                              {salesByCategoryEmployeeFilter === 'all' && (
+                                <Check className="w-3 h-3 text-white" />
+                              )}
+                            </div>
+                            <span className="text-sm font-medium text-slate-700">All employees</span>
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSalesByCategoryEmployeeFilter('operator');
+                              setSalesByCategoryEmployeeDropdownOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-50 transition-colors text-left"
+                          >
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                              salesByCategoryEmployeeFilter === 'operator' 
+                                ? 'bg-emerald-500 border-emerald-500' 
+                                : 'border-slate-300'
+                            }`}>
+                              {salesByCategoryEmployeeFilter === 'operator' && (
+                                <Check className="w-3 h-3 text-white" />
+                              )}
+                            </div>
+                            <span className="text-sm font-medium text-slate-700">Operator</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2575,27 +2650,27 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                                   <div className="relative flex-shrink-0">
                                     <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-purple-500 to-pink-600" />
                                   </div>
-                                  <span className="font-bold text-slate-900">{row.category || '—'}</span>
+                                  <span className="font-bold text-slate-900">{row.category || row.CATEGORY || '—'}</span>
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-sm tabular-nums">
                                 <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-100 text-slate-700 group-hover/row:bg-blue-100 group-hover/row:text-blue-800 transition-all">
-                                  {Number(row.quantity || 0).toLocaleString()}
+                                  {Number(row.quantity || row.QUANTITY || 0).toLocaleString()}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-sm tabular-nums">
                                 <span className="inline-block px-2 py-1 rounded-md font-bold bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 border border-purple-200/50 group-hover/row:from-purple-100 group-hover/row:to-pink-100 group-hover/row:border-purple-300 transition-all">
-                                  {formatPeso(row.net_sales || 0)}
+                                  {formatPeso(row.net_sales || row.NET_SALES || 0)}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-sm tabular-nums">
                                 <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-50 text-slate-600 border border-slate-200">
-                                  {formatPeso(row.unit_cost || 0)}
+                                  {formatPeso(row.unit_cost || row.UNIT_COST || 0)}
                                 </span>
                               </td>
                               <td className="pr-4 pl-6 py-3 text-right tabular-nums text-sm font-semibold">
                                 <span className="inline-block px-2.5 py-1 rounded-lg font-black bg-gradient-to-r from-purple-50 to-pink-50 text-purple-800 border-2 border-purple-200 group-hover/row:from-purple-100 group-hover/row:to-pink-100 group-hover/row:border-purple-300 group-hover/row:shadow-md transition-all">
-                                  {formatPeso(row.total_revenue || 0)}
+                                  {formatPeso(row.total_revenue || row.TOTAL_REVENUE || 0)}
                                 </span>
                               </td>
                             </tr>
