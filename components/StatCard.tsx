@@ -35,11 +35,13 @@ const StatCard: React.FC<StatCardProps> = ({
 
   const sign = changeAmount != null && changeAmount > 0 ? '+' : changeAmount != null && changeAmount < 0 ? '-' : '';
   const pctSign = changePercent != null && changePercent > 0 ? '+' : '';
+  const safeChangeAmount = (changeAmount != null && !isNaN(changeAmount)) ? changeAmount : 0;
+  const safeChangePercent = (changePercent != null && !isNaN(changePercent)) ? changePercent : 0;
   const changeLabel =
     hasChange && changePercent !== undefined && changePercent !== null
       ? formatChangeAsCurrency
-        ? `${sign}₱${Math.abs(changeAmount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${pctSign}${changePercent.toFixed(2)}%)`
-        : `${sign}${(changeAmount ?? 0).toLocaleString()} (${pctSign}${changePercent.toFixed(2)}%)`
+        ? `${sign}₱${Math.abs(safeChangeAmount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${pctSign}${safeChangePercent.toFixed(2)}%)`
+        : `${sign}${safeChangeAmount.toLocaleString()} (${pctSign}${safeChangePercent.toFixed(2)}%)`
       : trend;
 
   // Map color classes to gradient backgrounds for premium look

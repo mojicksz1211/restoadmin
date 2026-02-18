@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, Cell
 } from 'recharts';
 import { 
   DollarSign, Store, Sparkles, Loader2, 
@@ -21,7 +21,6 @@ import {
   ChartLoadingSkeleton,
   TableSkeleton
 } from '../components/LoadingSkeletons';
-import { MOCK_BRANCHES, SALES_CHART_DATA } from '../constants';
 import { getAIInsights, type AIAnalysisResult } from '../services/geminiService';
 import {
   getDashboardStats,
@@ -40,14 +39,17 @@ import {
   importReceipts,
   getSalesCategoryReport,
   importSalesCategoryReport,
-  SAMPLE_POPULAR_MENU_ITEMS,
-  SAMPLE_PAYMENT_METHOD_EXPORT,
+  getGoodsSalesReport,
+  importGoodsSalesReport,
+  validateImportedData,
+  type GoodsSalesReportRow,
   type PaymentMethodExportRow,
   type DashboardStats,
   type DashboardKpis,
   type PopularMenuItem,
   type BestsellerByPeriod,
   type DailySalesByProductItem,
+  type DataValidationResult,
 } from '../services/dashboardService';
 import { getBranches } from '../services/branchService';
 import { withMinimumDelay } from '../utils/loadingDelay';
@@ -73,6 +75,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [popularMenuItemsLoading, setPopularMenuItemsLoading] = useState(true);
   const [dailySalesByProduct, setDailySalesByProduct] = useState<DailySalesByProductItem[]>([]);
   const [dailySalesLoading, setDailySalesLoading] = useState(true);
+  const [dailySalesByProductForWidget, setDailySalesByProductForWidget] = useState<DailySalesByProductItem[]>([]);
+  const [dailySalesForWidgetLoading, setDailySalesForWidgetLoading] = useState(false);
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
   const [bestsellersByPeriod, setBestsellersByPeriod] = useState<BestsellerByPeriod[]>([]);
@@ -93,17 +97,29 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   
   // KimsBrother Total Sales Chart Controls
   const [kimsBrotherChartDateStart, setKimsBrotherChartDateStart] = useState<string>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return date.toISOString().slice(0, 10);
+    // Default to January 1, 2026
+    return '2026-01-01';
   });
-  const [kimsBrotherChartDateEnd, setKimsBrotherChartDateEnd] = useState<string>(() => 
-    new Date().toISOString().slice(0, 10)
-  );
+  const [kimsBrotherChartDateEnd, setKimsBrotherChartDateEnd] = useState<string>(() => {
+    // Default to February 18, 2026
+    return '2026-02-18';
+  });
   const [kimsBrotherChartType, setKimsBrotherChartType] = useState<'bar' | 'line'>('line');
   const [kimsBrotherChartPeriod, setKimsBrotherChartPeriod] = useState<'glance' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'>('glance');
   const [kimsBrotherChartTypeDropdownOpen, setKimsBrotherChartTypeDropdownOpen] = useState<boolean>(false);
   const [kimsBrotherChartPeriodDropdownOpen, setKimsBrotherChartPeriodDropdownOpen] = useState<boolean>(false);
+  
+  // Product Sales Chart Date Range
+  const [productSalesDateStart, setProductSalesDateStart] = useState<string>(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date.toISOString().slice(0, 10);
+  });
+  const [productSalesDateEnd, setProductSalesDateEnd] = useState<string>(() => 
+    new Date().toISOString().slice(0, 10)
+  );
+  const productSalesDatePickerRef = useRef<HTMLInputElement>(null);
+  const productSalesFlatpickrInstance = useRef<flatpickr.Instance | null>(null);
   const kimsBrotherDatePickerRef = useRef<HTMLInputElement>(null);
   const kimsBrotherFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
   
@@ -120,6 +136,30 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [salesByCategoryModalOpen, setSalesByCategoryModalOpen] = useState<boolean>(false);
   const [salesByCategoryData, setSalesByCategoryData] = useState<any[]>([]);
   const [salesByCategoryLoading, setSalesByCategoryLoading] = useState<boolean>(false);
+  
+  // Sales by Product Modal
+  const [salesByProductModalOpen, setSalesByProductModalOpen] = useState<boolean>(false);
+  const [salesByProductDateStart, setSalesByProductDateStart] = useState<string>(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date.toISOString().slice(0, 10);
+  });
+  const [salesByProductDateEnd, setSalesByProductDateEnd] = useState<string>(() => 
+    new Date().toISOString().slice(0, 10)
+  );
+  const [salesByProductPage, setSalesByProductPage] = useState<number>(1);
+  const [salesByProductPageSize, setSalesByProductPageSize] = useState<number>(10);
+  const [salesByProductEmployeeFilter, setSalesByProductEmployeeFilter] = useState<string>('all');
+  const [salesByProductEmployeeDropdownOpen, setSalesByProductEmployeeDropdownOpen] = useState<boolean>(false);
+  
+  // Data Validation Modal
+  const [validationModalOpen, setValidationModalOpen] = useState<boolean>(false);
+  const [validationResult, setValidationResult] = useState<DataValidationResult | null>(null);
+  const [validationLoading, setValidationLoading] = useState<boolean>(false);
+  const [goodsSalesData, setGoodsSalesData] = useState<GoodsSalesReportRow[]>([]);
+  const [goodsSalesLoading, setGoodsSalesLoading] = useState<boolean>(false);
+  const [goodsSalesImportLoading, setGoodsSalesImportLoading] = useState<boolean>(false);
+  const goodsSalesImportInputRef = useRef<HTMLInputElement>(null);
   const [salesByCategoryDateStart, setSalesByCategoryDateStart] = useState<string>(() => {
     const date = new Date();
     date.setDate(date.getDate() - 30);
@@ -183,6 +223,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const paymentMethodsFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
   const salesByCategoryDatePickerRef = useRef<HTMLInputElement>(null);
   const salesByCategoryFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
+  const salesByProductDatePickerRef = useRef<HTMLInputElement>(null);
+  const salesByProductFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
+  const salesByProductWidgetDatePickerRef = useRef<HTMLInputElement>(null);
+  const salesByProductWidgetFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
   const discountDatePickerRef = useRef<HTMLInputElement>(null);
   const discountFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
   const receiptDatePickerRef = useRef<HTMLInputElement>(null);
@@ -217,8 +261,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setChartError(null);
     setChartData([]);
     try {
-      const res = await withMinimumDelay(getRevenueReport(selectedBranchId, 7), 1000);
-      setChartData(revenueReportToChartData(res.data));
+      const res = await withMinimumDelay(getRevenueReport(selectedBranchId, 7, 'daily'), 1000);
+      setChartData(revenueReportToChartData(res.data, 'daily'));
     } catch (err) {
       setChartError(err instanceof Error ? err.message : 'Failed to load revenue chart');
       setChartData([]);
@@ -239,15 +283,26 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       
-      const res = await withMinimumDelay(getRevenueReport(selectedBranchId, diffDays), 1000);
-      setChartData(revenueReportToChartData(res.data));
+      // Determine period based on kimsBrotherChartPeriod
+      let period: 'daily' | 'weekly' | 'monthly' = 'daily';
+      if (kimsBrotherChartPeriod === 'weekly') {
+        period = 'weekly';
+      } else if (kimsBrotherChartPeriod === 'monthly' || kimsBrotherChartPeriod === 'quarterly' || kimsBrotherChartPeriod === 'yearly') {
+        period = 'monthly';
+      }
+      
+      const res = await withMinimumDelay(
+        getRevenueReport(selectedBranchId, diffDays, period, kimsBrotherChartDateStart, kimsBrotherChartDateEnd), 
+        1000
+      );
+      setChartData(revenueReportToChartData(res.data, period, kimsBrotherChartDateStart, kimsBrotherChartDateEnd));
     } catch (err) {
       setChartError(err instanceof Error ? err.message : 'Failed to load revenue chart');
       setChartData([]);
     } finally {
       setChartLoading(false);
     }
-  }, [selectedBranchId, isKimsBrothersDashboard, kimsBrotherChartDateStart, kimsBrotherChartDateEnd]);
+  }, [selectedBranchId, isKimsBrothersDashboard, kimsBrotherChartDateStart, kimsBrotherChartDateEnd, kimsBrotherChartPeriod]);
 
   const formatDateForDisplay = (dateString: string): string => {
     const date = new Date(dateString);
@@ -265,18 +320,33 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     const endDate = new Date(kimsBrotherChartDateEnd);
     const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     
-    if (direction === 'prev') {
-      startDate.setDate(startDate.getDate() - diffDays);
-      endDate.setDate(endDate.getDate() - diffDays);
+    if (kimsBrotherChartPeriod === 'monthly' || kimsBrotherChartPeriod === 'quarterly' || kimsBrotherChartPeriod === 'yearly') {
+      // For monthly/quarterly/yearly, navigate by months
+      const monthsToMove = kimsBrotherChartPeriod === 'quarterly' ? 3 : kimsBrotherChartPeriod === 'yearly' ? 12 : 1;
+      
+      if (direction === 'prev') {
+        startDate.setMonth(startDate.getMonth() - monthsToMove);
+        endDate.setMonth(endDate.getMonth() - monthsToMove);
+      } else {
+        startDate.setMonth(startDate.getMonth() + monthsToMove);
+        endDate.setMonth(endDate.getMonth() + monthsToMove);
+      }
     } else {
-      startDate.setDate(startDate.getDate() + diffDays);
-      endDate.setDate(endDate.getDate() + diffDays);
+      // For daily/weekly/glance, navigate by days
+      if (direction === 'prev') {
+        startDate.setDate(startDate.getDate() - diffDays);
+        endDate.setDate(endDate.getDate() - diffDays);
+      } else {
+        startDate.setDate(startDate.getDate() + diffDays);
+        endDate.setDate(endDate.getDate() + diffDays);
+      }
     }
     
     setKimsBrotherChartDateStart(startDate.toISOString().slice(0, 10));
     setKimsBrotherChartDateEnd(endDate.toISOString().slice(0, 10));
   };
 
+  // Initialize flatpickr instance (only once)
   useEffect(() => {
     if (!isKimsBrothersDashboard || !kimsBrotherDatePickerRef.current) return;
 
@@ -291,8 +361,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       disableMobile: true,
       onChange: (selectedDates) => {
         if (selectedDates.length === 2) {
-          setKimsBrotherChartDateStart(selectedDates[0].toISOString().slice(0, 10));
-          setKimsBrotherChartDateEnd(selectedDates[1].toISOString().slice(0, 10));
+          const start = selectedDates[0].toISOString().slice(0, 10);
+          const end = selectedDates[1].toISOString().slice(0, 10);
+          setKimsBrotherChartDateStart(start);
+          setKimsBrotherChartDateEnd(end);
         }
       },
     });
@@ -302,7 +374,50 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         kimsBrotherFlatpickrInstance.current.destroy();
       }
     };
-  }, [isKimsBrothersDashboard, kimsBrotherChartDateStart, kimsBrotherChartDateEnd]);
+  }, [isKimsBrothersDashboard]);
+
+  // Update flatpickr dates when state changes (from navigation buttons, etc.)
+  useEffect(() => {
+    if (kimsBrotherFlatpickrInstance.current && isKimsBrothersDashboard) {
+      // Only update if dates are different to avoid infinite loop
+      const currentDates = kimsBrotherFlatpickrInstance.current.selectedDates;
+      const currentStart = currentDates.length > 0 ? currentDates[0].toISOString().slice(0, 10) : null;
+      const currentEnd = currentDates.length > 1 ? currentDates[1].toISOString().slice(0, 10) : null;
+      
+      if (currentStart !== kimsBrotherChartDateStart || currentEnd !== kimsBrotherChartDateEnd) {
+        kimsBrotherFlatpickrInstance.current.setDate([kimsBrotherChartDateStart, kimsBrotherChartDateEnd], false);
+      }
+    }
+  }, [kimsBrotherChartDateStart, kimsBrotherChartDateEnd, isKimsBrothersDashboard]);
+
+  // Product Sales Chart date range - flatpickr
+  useEffect(() => {
+    const el = productSalesDatePickerRef.current;
+    if (!el) return;
+    if (productSalesFlatpickrInstance.current) {
+      productSalesFlatpickrInstance.current.destroy();
+      productSalesFlatpickrInstance.current = null;
+    }
+
+    productSalesFlatpickrInstance.current = flatpickr(el, {
+      mode: 'range',
+      dateFormat: 'Y-m-d',
+      defaultDate: [productSalesDateStart, productSalesDateEnd],
+      disableMobile: true,
+      onChange: (selectedDates) => {
+        if (selectedDates.length === 2) {
+          setProductSalesDateStart(selectedDates[0].toISOString().slice(0, 10));
+          setProductSalesDateEnd(selectedDates[1].toISOString().slice(0, 10));
+        }
+      },
+    });
+
+    return () => {
+      if (productSalesFlatpickrInstance.current) {
+        productSalesFlatpickrInstance.current.destroy();
+      }
+    };
+  }, [productSalesDateStart, productSalesDateEnd]);
 
   // Payment methods date range - flatpickr (init when Kim's Brothers section is visible)
   useEffect(() => {
@@ -383,6 +498,105 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       salesByCategoryFlatpickrInstance.current.setDate([salesByCategoryDateStart, salesByCategoryDateEnd], false);
     }
   }, [salesByCategoryModalOpen, salesByCategoryDateStart, salesByCategoryDateEnd]);
+
+  // Sales by Product date range - flatpickr (init when modal opens)
+  useEffect(() => {
+    if (!salesByProductModalOpen || !salesByProductDatePickerRef.current) return;
+    if (salesByProductFlatpickrInstance.current) {
+      salesByProductFlatpickrInstance.current.destroy();
+    }
+    salesByProductFlatpickrInstance.current = flatpickr(salesByProductDatePickerRef.current, {
+      mode: 'range',
+      dateFormat: 'Y-m-d',
+      defaultDate: [salesByProductDateStart, salesByProductDateEnd],
+      maxDate: 'today',
+      disableMobile: true,
+      onChange: (selectedDates) => {
+        if (selectedDates.length === 2) {
+          const [d1, d2] = selectedDates;
+          const start = d1 < d2 ? d1 : d2;
+          const end = d1 < d2 ? d2 : d1;
+          setSalesByProductDateStart(start.toISOString().slice(0, 10));
+          setSalesByProductDateEnd(end.toISOString().slice(0, 10));
+        }
+      },
+    });
+    return () => {
+      if (salesByProductFlatpickrInstance.current) {
+        salesByProductFlatpickrInstance.current.destroy();
+      }
+    };
+  }, [salesByProductModalOpen]);
+
+  useEffect(() => {
+    if (salesByProductModalOpen && salesByProductFlatpickrInstance.current) {
+      salesByProductFlatpickrInstance.current.setDate([salesByProductDateStart, salesByProductDateEnd], false);
+    }
+  }, [salesByProductModalOpen, salesByProductDateStart, salesByProductDateEnd]);
+
+  // Sales by Product widget date range - flatpickr (for dashboard widget)
+  useEffect(() => {
+    const el = salesByProductWidgetDatePickerRef.current;
+    if (!el) return;
+    
+    // Only initialize once
+    if (salesByProductWidgetFlatpickrInstance.current) {
+      return;
+    }
+
+    // Small delay to ensure element is ready
+    const timeoutId = setTimeout(() => {
+      if (!salesByProductWidgetDatePickerRef.current) return;
+      
+      // Initialize flatpickr
+      salesByProductWidgetFlatpickrInstance.current = flatpickr(salesByProductWidgetDatePickerRef.current, {
+        mode: 'range',
+        dateFormat: 'Y-m-d',
+        defaultDate: [salesByProductDateStart, salesByProductDateEnd],
+        maxDate: 'today',
+        disableMobile: true,
+        onChange: (selectedDates) => {
+          if (selectedDates.length === 2) {
+            const [d1, d2] = selectedDates;
+            const start = d1 < d2 ? d1 : d2;
+            const end = d1 < d2 ? d2 : d1;
+            const startStr = start.toISOString().slice(0, 10);
+            const endStr = end.toISOString().slice(0, 10);
+            
+            // Update state - this will trigger data reload
+            setSalesByProductDateStart(startStr);
+            setSalesByProductDateEnd(endStr);
+          }
+        },
+      });
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (salesByProductWidgetFlatpickrInstance.current) {
+        salesByProductWidgetFlatpickrInstance.current.destroy();
+        salesByProductWidgetFlatpickrInstance.current = null;
+      }
+    };
+  }, []); // Only initialize once
+
+  // Update date picker when dates change externally (e.g., from "Last 30 Days" button)
+  useEffect(() => {
+    if (salesByProductWidgetFlatpickrInstance.current) {
+      try {
+        const currentDates = salesByProductWidgetFlatpickrInstance.current.selectedDates;
+        const currentStart = currentDates.length > 0 ? currentDates[0].toISOString().slice(0, 10) : null;
+        const currentEnd = currentDates.length > 1 ? currentDates[1].toISOString().slice(0, 10) : null;
+        
+        // Only update if dates actually changed
+        if (currentStart !== salesByProductDateStart || currentEnd !== salesByProductDateEnd) {
+          salesByProductWidgetFlatpickrInstance.current.setDate([salesByProductDateStart, salesByProductDateEnd], false);
+        }
+      } catch (error) {
+        console.error('Error updating date picker:', error);
+      }
+    }
+  }, [salesByProductDateStart, salesByProductDateEnd]);
 
   // Discount date range - flatpickr (init when modal opens)
   useEffect(() => {
@@ -487,11 +701,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setKpisLoading(true);
     setKpis(null);
     try {
-      const branch = selectedBranchId === 'all' ? null : MOCK_BRANCHES.find((x) => x.id === selectedBranchId);
-      const totalExpense = branch
-        ? branch.expenses.labor + branch.expenses.cogs + branch.expenses.operational
-        : MOCK_BRANCHES.reduce((acc, curr) => acc + curr.expenses.labor + curr.expenses.cogs + curr.expenses.operational, 0);
-      const data = await withMinimumDelay(getDashboardKpis(selectedBranchId, { totalExpense }), 1000);
+      // Remove static expense data - let API provide expense data from database
+      const data = await withMinimumDelay(getDashboardKpis(selectedBranchId), 1000);
       setKpis(data);
     } catch {
       setKpis(null);
@@ -526,42 +737,66 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     }
   }, []);
 
-  const STATIC_BRANCH_COMPARISON_DATA = [
-    { name: 'Jan', 'BLUEMOON': 85000, 'DARAEJUNG': 65000, "KIMS BROTHER": 45000 },
-    { name: 'Feb', 'BLUEMOON': 95000, 'DARAEJUNG': 72000, "KIMS BROTHER": 48000 },
-    { name: 'Mar', 'BLUEMOON': 105000, 'DARAEJUNG': 80000, "KIMS BROTHER": 52000 },
-    { name: 'Apr', 'BLUEMOON': 98000, 'DARAEJUNG': 75000, "KIMS BROTHER": 50000 },
-    { name: 'May', 'BLUEMOON': 110000, 'DARAEJUNG': 90000, "KIMS BROTHER": 58000 },
-    { name: 'Jun', 'BLUEMOON': 70000, 'DARAEJUNG': 65000, "KIMS BROTHER": 55000 },
-  ];
-
-  const STATIC_BRANCH_NAMES = ['BLUEMOON', 'DARAEJUNG', "KIMS BROTHER"];
+  // Removed static branch comparison data - will use actual data from API
 
   const loadPopularMenuItems = useCallback(async () => {
     setPopularMenuItemsLoading(true);
     setPopularMenuItems([]);
     try {
-      const res = await withMinimumDelay(getPopularMenuItems(selectedBranchId, 30, 5), 1000);
+      // Calculate days from product sales date range to keep them in sync
+      const startDate = new Date(productSalesDateStart);
+      const endDate = new Date(productSalesDateEnd);
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const res = await withMinimumDelay(getPopularMenuItems(selectedBranchId, daysDiff, 5), 1000);
       setPopularMenuItems(res.data);
     } catch {
       setPopularMenuItems([]);
     } finally {
       setPopularMenuItemsLoading(false);
     }
-  }, [selectedBranchId]);
+  }, [selectedBranchId, productSalesDateStart, productSalesDateEnd]);
 
   const loadDailySalesByProduct = useCallback(async () => {
     setDailySalesLoading(true);
     setDailySalesByProduct([]);
     try {
-      const data = await withMinimumDelay(getDailySalesByProduct(selectedBranchId, 30, 5), 1000);
+      // Calculate days from date range
+      const startDate = new Date(productSalesDateStart);
+      const endDate = new Date(productSalesDateEnd);
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const data = await withMinimumDelay(
+        getDailySalesByProduct(selectedBranchId, daysDiff, 5, productSalesDateStart, productSalesDateEnd), 
+        1000
+      );
       setDailySalesByProduct(data);
     } catch {
       setDailySalesByProduct([]);
     } finally {
       setDailySalesLoading(false);
     }
-  }, [selectedBranchId]);
+  }, [selectedBranchId, productSalesDateStart, productSalesDateEnd]);
+
+  // Load daily sales by product for Sales by Product widget (uses salesByProductDateStart/End)
+  const loadDailySalesByProductForWidget = useCallback(async () => {
+    setDailySalesForWidgetLoading(true);
+    try {
+      const startDate = new Date(salesByProductDateStart);
+      const endDate = new Date(salesByProductDateEnd);
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      
+      const data = await withMinimumDelay(
+        getDailySalesByProduct(selectedBranchId, daysDiff, 10, salesByProductDateStart, salesByProductDateEnd), 
+        500
+      );
+      
+      setDailySalesByProductForWidget(data || []);
+    } catch (error) {
+      console.error('Error loading daily sales for widget:', error);
+      setDailySalesByProductForWidget([]);
+    } finally {
+      setDailySalesForWidgetLoading(false);
+    }
+  }, [selectedBranchId, salesByProductDateStart, salesByProductDateEnd]);
 
   useEffect(() => {
     loadTopBranches();
@@ -608,7 +843,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       const data = await withMinimumDelay(getPaymentMethodsSummary(selectedBranchId, paymentMethodsDateStart, paymentMethodsDateEnd), 1000);
       setPaymentMethodsSummary(data);
     } catch {
-      setPaymentMethodsSummary(SAMPLE_PAYMENT_METHOD_EXPORT);
+      // Keep empty array instead of using sample data
+      setPaymentMethodsSummary([]);
     } finally {
       setPaymentMethodsLoading(false);
     }
@@ -629,19 +865,29 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         500
       );
       // Map the API response to match the expected format
-      const mappedData = result.map(row => ({
-        category: row.category || '',
-        quantity: row.sales_quantity || 0,
-        net_sales: row.net_sales || 0,
-        unit_cost: row.unit_cost || 0,
-        total_revenue: row.total_revenue || 0,
-        // Also include uppercase keys for compatibility
-        CATEGORY: row.category || '',
-        QUANTITY: row.sales_quantity || 0,
-        NET_SALES: row.net_sales || 0,
-        UNIT_COST: row.unit_cost || 0,
-        TOTAL_REVENUE: row.total_revenue || 0,
-      }));
+      const mappedData = result.map((row: any) => {
+        // Use total_sales from DB (which is the actual column name)
+        const totalSales = Number(row.total_sales ?? row.total_revenue ?? 0);
+        return {
+          category: row.category || '',
+          quantity: row.sales_quantity || 0,
+          total_sales: totalSales,
+          refund_quantity: Number(row.refund_quantity ?? 0),
+          refund_amount: Number(row.refund_amount ?? 0),
+          discounts: Number(row.discounts ?? 0),
+          net_sales: Number(row.net_sales ?? 0),
+          // For backward compatibility with display code
+          total_revenue: totalSales,
+          CATEGORY: row.category || '',
+          QUANTITY: row.sales_quantity || 0,
+          TOTAL_SALES: totalSales,
+          REFUND_QUANTITY: Number(row.refund_quantity ?? 0),
+          REFUND_AMOUNT: Number(row.refund_amount ?? 0),
+          DISCOUNTS: Number(row.discounts ?? 0),
+          NET_SALES: Number(row.net_sales ?? 0),
+          TOTAL_REVENUE: totalSales,
+        };
+      });
       setSalesByCategoryData(mappedData);
     } catch (err) {
       setSalesByCategoryData([]);
@@ -657,6 +903,40 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       setSalesByCategoryPage(1);
     }
   }, [salesByCategoryModalOpen, salesByCategoryDateStart, salesByCategoryDateEnd, salesByCategoryEmployeeFilter, loadSalesByCategory]);
+
+  // Load goods sales report data
+  const loadGoodsSales = useCallback(async () => {
+    setGoodsSalesLoading(true);
+    setGoodsSalesData([]);
+    try {
+      const result = await withMinimumDelay(
+        getGoodsSalesReport(selectedBranchId, salesByProductDateStart, salesByProductDateEnd),
+        500
+      );
+      setGoodsSalesData(result);
+    } catch (error) {
+      console.error('Error loading goods sales report:', error);
+      setGoodsSalesData([]);
+    } finally {
+      setGoodsSalesLoading(false);
+    }
+  }, [selectedBranchId, salesByProductDateStart, salesByProductDateEnd]);
+
+  // Load goods sales data when modal opens or filters change
+  useEffect(() => {
+    if (salesByProductModalOpen) {
+      loadGoodsSales();
+      setSalesByProductPage(1);
+    }
+  }, [salesByProductModalOpen, salesByProductDateStart, salesByProductDateEnd, salesByProductEmployeeFilter, loadGoodsSales]);
+
+  // Load goods sales data and daily sales for dashboard widgets when date range changes
+  useEffect(() => {
+    if (salesByProductDateStart && salesByProductDateEnd) {
+      loadGoodsSales();
+      loadDailySalesByProductForWidget();
+    }
+  }, [salesByProductDateStart, salesByProductDateEnd, loadGoodsSales, loadDailySalesByProductForWidget]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -679,10 +959,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           setReceiptEmployeeDropdownOpen(false);
         }
       }
+      if (salesByProductEmployeeDropdownOpen) {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.sales-by-product-employee-filter-dropdown')) {
+          setSalesByProductEmployeeDropdownOpen(false);
+        }
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [salesByCategoryEmployeeDropdownOpen, discountEmployeeDropdownOpen, receiptEmployeeDropdownOpen]);
+  }, [salesByCategoryEmployeeDropdownOpen, discountEmployeeDropdownOpen, receiptEmployeeDropdownOpen, salesByProductEmployeeDropdownOpen]);
 
   const loadDiscountReport = useCallback(async () => {
     setDiscountLoading(true);
@@ -761,42 +1047,185 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   const generateAIReport = async () => {
     setLoadingAI(true);
-    const branchesToAnalyze = selectedBranchId === 'all' 
-      ? MOCK_BRANCHES 
-      : MOCK_BRANCHES.filter(b => b.id === selectedBranchId);
-    const insights = await getAIInsights(branchesToAnalyze);
-    setAiReport(insights);
-    setLoadingAI(false);
+    try {
+      // Get real branches from API and convert to Branch format for AI analysis
+      const branchRecords = await getBranches();
+      const branchesToAnalyze = (selectedBranchId === 'all' 
+        ? branchRecords 
+        : branchRecords.filter(b => b.id === selectedBranchId)
+      ).map(b => ({
+        id: b.id,
+        name: b.name,
+        location: b.address || '',
+        manager: '',
+        status: b.active ? 'Open' as const : 'Closed' as const,
+        dailyRevenue: 0, // Will be calculated from actual data if needed
+        ordersCount: 0,
+        topSellingItem: '',
+        expenses: {
+          labor: 0,
+          cogs: 0,
+          operational: 0,
+        },
+      }));
+      const insights = await getAIInsights(branchesToAnalyze);
+      setAiReport(insights);
+    } catch (error) {
+      console.error('Failed to generate AI report:', error);
+      // Set a fallback report if API fails
+      setAiReport({
+        summary: 'Unable to generate AI insights. Please ensure branch data is available.',
+        strengths: ['Data analysis unavailable'],
+        weaknesses: ['Data analysis unavailable'],
+        recommendations: ['Please try again later'],
+      });
+    } finally {
+      setLoadingAI(false);
+    }
   };
 
-  const activeBranch = selectedBranchId === 'all' 
-    ? null 
-    : MOCK_BRANCHES.find(b => b.id === selectedBranchId);
-
-  const currentContextName = branchName !== 'All Branches' ? branchName : (activeBranch ? activeBranch.name : t('all_branches'));
+  const currentContextName = branchName !== 'All Branches' ? branchName : t('all_branches');
 
   const totalRevenue = stats?.todaysRevenue ?? 0;
   const totalOrders = stats?.totalOrders ?? 0;
   const activeTables = stats?.activeTables ?? 0;
   const pendingOrders = stats?.pendingOrders ?? 0;
 
-  const totalExpenses = activeBranch
-    ? activeBranch.expenses.labor + activeBranch.expenses.cogs + activeBranch.expenses.operational
-    : MOCK_BRANCHES.reduce((acc, curr) => 
-        acc + curr.expenses.labor + curr.expenses.cogs + curr.expenses.operational, 0);
-
+  // Use expense from KPIs if available, otherwise 0
+  const totalExpenses = kpis?.expense.value ?? 0;
   const profit = totalRevenue - totalExpenses;
 
   const TOP_PRODUCT_COLORS = ['#78909c', '#9ccc65', '#42a5f5', '#ec407a', '#8b5cf6'] as const;
-  const popularHasSignal = popularMenuItems.some((x) =>
-    Number(x.total_revenue ?? 0) > 0 || Number(x.total_quantity ?? 0) > 0 || Number(x.order_count ?? 0) > 0
-  );
-  const displayedPopularMenuItems = popularHasSignal ? popularMenuItems : SAMPLE_POPULAR_MENU_ITEMS;
+  // Always use actual data from API, even if empty
+  const displayedPopularMenuItems = popularMenuItems;
   const top5PopularMenuItems = displayedPopularMenuItems.slice(0, 5);
   const PRODUCT_SERIES_DAYS = 30;
 
+  // Top 5 Products from goodsSalesData (Sales by Product)
+  const top5GoodsSales = (() => {
+    if (!goodsSalesData || goodsSalesData.length === 0) {
+      return [];
+    }
+    return [...goodsSalesData]
+      .sort((a, b) => (b.net_sales || 0) - (a.net_sales || 0))
+      .slice(0, 5);
+  })();
+
   const productKeyToName = Object.fromEntries(
     top5PopularMenuItems.map((p, idx) => [`p${idx}`, p.MENU_NAME])
+  ) as Record<string, string>;
+
+  // Get top 5 products from dailySalesByProductForWidget (grouped by product name)
+  const top5ProductsFromDailySales = (() => {
+    if (!dailySalesByProductForWidget || dailySalesByProductForWidget.length === 0) {
+      return [];
+    }
+    
+    // Group by product name and sum total revenue
+    const productMap = new Map<string, { name: string; menu_id: number; totalRevenue: number }>();
+    
+    dailySalesByProductForWidget.forEach((item) => {
+      if (!item || !item.MENU_NAME) return;
+      const name = item.MENU_NAME;
+      const menuId = item.menu_id || 0;
+      const revenue = Number(item.daily_revenue) || 0;
+      
+      if (productMap.has(name)) {
+        const existing = productMap.get(name)!;
+        existing.totalRevenue += revenue;
+      } else {
+        productMap.set(name, { name, menu_id: menuId, totalRevenue: revenue });
+      }
+    });
+    
+    // Sort by total revenue and take top 5
+    return Array.from(productMap.values())
+      .sort((a, b) => b.totalRevenue - a.totalRevenue)
+      .slice(0, 5);
+  })();
+
+  // Stacked chart data for Sales graph by product using dailySalesByProductForWidget
+  const productSalesStackedChartDataForWidget = (() => {
+    if (!top5ProductsFromDailySales || top5ProductsFromDailySales.length === 0) {
+      return [];
+    }
+
+    // Create date range from salesByProductDateStart to salesByProductDateEnd
+    const startDate = new Date(salesByProductDateStart);
+    const endDate = new Date(salesByProductDateEnd);
+    const labels: string[] = [];
+    const dateMap = new Map<string, string>();
+    
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateStr = currentDate.toISOString().slice(0, 10);
+      const label = currentDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
+      labels.push(label);
+      dateMap.set(dateStr, label);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Create product name to index mapping
+    const productNameToIndex = new Map<string, number>();
+    top5ProductsFromDailySales.forEach((item, idx) => {
+      productNameToIndex.set(item.name.toLowerCase().trim(), idx);
+    });
+
+    // Initialize daily data structure
+    const dailyData = new Map<string, Map<number, number>>();
+    labels.forEach((label) => {
+      dailyData.set(label, new Map());
+      top5ProductsFromDailySales.forEach((_, idx) => {
+        dailyData.get(label)!.set(idx, 0);
+      });
+    });
+
+    // Fill in data from dailySalesByProductForWidget
+    if (dailySalesByProductForWidget && Array.isArray(dailySalesByProductForWidget)) {
+      dailySalesByProductForWidget.forEach((item) => {
+        if (!item || !item.MENU_NAME) return;
+        
+        // Match product name (case-insensitive, trimmed)
+        const productName = item.MENU_NAME.toLowerCase().trim();
+        const productIdx = productNameToIndex.get(productName);
+        
+        if (productIdx === undefined) return;
+        
+        let dateStr: string;
+        if (typeof item.date === 'string') {
+          dateStr = item.date.slice(0, 10);
+        } else if (item.date instanceof Date) {
+          dateStr = item.date.toISOString().slice(0, 10);
+        } else {
+          try {
+            dateStr = new Date(item.date).toISOString().slice(0, 10);
+          } catch {
+            return;
+          }
+        }
+        
+        const label = dateMap.get(dateStr);
+        if (label && dailyData.has(label)) {
+          const currentValue = dailyData.get(label)!.get(productIdx) || 0;
+          const revenue = Number(item.daily_revenue) || 0;
+          dailyData.get(label)!.set(productIdx, currentValue + revenue);
+        }
+      });
+    }
+
+    return labels.map((label) => {
+      const row: Record<string, string | number> = { name: label };
+      const dayData = dailyData.get(label);
+      top5ProductsFromDailySales.forEach((_, pIdx) => {
+        row[`p${pIdx}`] = dayData?.get(pIdx) || 0;
+      });
+      return row as { name: string } & Record<string, number>;
+    });
+  })();
+
+  // Product key to name mapping for widget chart
+  const productKeyToNameForWidget = Object.fromEntries(
+    top5ProductsFromDailySales.map((p, idx) => [`p${idx}`, p.name || `Product ${idx + 1}`])
   ) as Record<string, string>;
 
   const productSalesStackedChartData = (() => {
@@ -873,10 +1302,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     });
   })();
 
-  const salesChartHasSignal = chartData.some((x) => Number(x.sales ?? 0) > 0);
-  const displayedSalesChartData = (!chartData.length || !salesChartHasSignal || !!chartError)
-    ? SALES_CHART_DATA
-    : chartData;
 
   const formatPeso = (amount: number) =>
     `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1163,25 +1588,20 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   </h3>
                   <p className="text-xs text-slate-500 mt-1 font-medium">{t('monthly_revenue_trends')}</p>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  {STATIC_BRANCH_NAMES.map((branchName, idx) => {
-                    const colors = ['#10b981', '#3b82f6', '#a855f7'];
-                    return (
-                      <div key={branchName} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colors[idx] }}></div>
-                        <span className="text-xs font-bold text-slate-700">{branchName}</span>
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
               
               <div className="relative h-80 min-h-[320px] z-10">
                 {chartLoading ? (
                   <ChartLoadingSkeleton type="line" />
+                ) : chartData.length === 0 || chartError ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                    <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
+                    <p className="text-sm font-semibold text-slate-500">No revenue data available</p>
+                    <p className="text-xs text-slate-400 mt-1">Revenue data will appear here once sales are recorded</p>
+                  </div>
                 ) : (
                   <ResponsiveContainer width="100%" height={320} minWidth={0}>
-                    <LineChart data={STATIC_BRANCH_COMPARISON_DATA}>
+                    <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} strokeOpacity={0.5} />
                       <XAxis 
                         dataKey="name" 
@@ -1212,31 +1632,15 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                         formatter={(value: number) => [`₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Revenue']}
                         labelStyle={{ fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}
                       />
-                      <Legend 
-                        wrapperStyle={{ paddingTop: '20px' }}
-                        iconType="circle"
-                        formatter={(value) => <span style={{ fontWeight: 600, fontSize: '12px' }}>{value}</span>}
+                      <Line 
+                        type="monotone" 
+                        dataKey="sales" 
+                        stroke="#10b981" 
+                        strokeWidth={3}
+                        dot={{ r: 5, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+                        activeDot={{ r: 7, fill: '#10b981' }}
+                        style={{filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.3))'}}
                       />
-                      {STATIC_BRANCH_NAMES.map((branchName, idx) => {
-                        const colors = ['#10b981', '#3b82f6', '#a855f7'];
-                        const rgbValues = [
-                          { r: 16, g: 185, b: 129 },
-                          { r: 59, g: 130, b: 246 },
-                          { r: 168, g: 85, b: 247 }
-                        ];
-                        return (
-                          <Line 
-                            key={`${branchName}-${idx}`}
-                            type="monotone" 
-                            dataKey={branchName} 
-                            stroke={colors[idx]} 
-                            strokeWidth={3}
-                            dot={{ r: 5, fill: colors[idx], strokeWidth: 2, stroke: '#fff' }}
-                            activeDot={{ r: 7, fill: colors[idx] }}
-                            style={{filter: `drop-shadow(0 2px 4px rgba(${rgbValues[idx].r}, ${rgbValues[idx].g}, ${rgbValues[idx].b}, 0.3))`}}
-                          />
-                        );
-                      })}
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -1317,17 +1721,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       {/* Kim's Brothers View - Advanced Analytics */}
       {isKimsBrothersDashboard && (
         <>
-          {/* Top Stats Row - 5 KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
+          {/* Top Stats Row - 6 KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-6">
         {kpisLoading ? (
-          [...Array(5)].map((_, i) => (
+          [...Array(6)].map((_, i) => (
             <StatCardSkeleton key={i} />
           ))
         ) : kpis ? (
           <>
-            <StatCard title={t('total_sales')} value={`₱${kpis.totalSales.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={DollarSign} changeAmount={kpis.totalSales.change} changePercent={kpis.totalSales.changePercent} color="bg-green-500" />
+            <StatCard title={t('total_sales')} value={`₱${(Number(kpis.totalSales.value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={DollarSign} changeAmount={isNaN(kpis.totalSales.change) ? 0 : kpis.totalSales.change} changePercent={isNaN(kpis.totalSales.changePercent) ? 0 : kpis.totalSales.changePercent} color="bg-green-500" />
             <div className="relative">
-              <StatCard title={t('discount')} value={`₱${kpis.discount.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Tag} changeAmount={kpis.discount.change} changePercent={kpis.discount.changePercent} color="bg-amber-500" />
+              <StatCard title={t('discount')} value={`₱${(Number(kpis.discount.value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Tag} changeAmount={isNaN(kpis.discount.change) ? 0 : kpis.discount.change} changePercent={isNaN(kpis.discount.changePercent) ? 0 : kpis.discount.changePercent} color="bg-amber-500" />
               <button
                 onClick={() => setDiscountModalOpen(true)}
                 className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold rounded-lg hover:from-amber-600 hover:to-orange-600 transition-all shadow-sm hover:shadow-md z-10"
@@ -1336,9 +1740,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <span>View Report</span>
               </button>
             </div>
-            <StatCard title={t('net_sales')} value={`₱${kpis.netSales.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={TrendingUp} changeAmount={kpis.netSales.change} changePercent={kpis.netSales.changePercent} color="bg-blue-600" />
-            <StatCard title={t('expenses')} value={`₱${kpis.expense.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Receipt} changeAmount={kpis.expense.change} changePercent={kpis.expense.changePercent} color="bg-orange-500" />
-            <StatCard title={t('gross_profit')} value={`₱${kpis.grossProfit.value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={CircleDollarSign} changeAmount={kpis.grossProfit.change} changePercent={kpis.grossProfit.changePercent} color="bg-emerald-600" />
+            <StatCard title={t('refund')} value={`₱${(Number(kpis.refund.value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={ArrowDownRight} changeAmount={isNaN(kpis.refund.change) ? 0 : kpis.refund.change} changePercent={isNaN(kpis.refund.changePercent) ? 0 : kpis.refund.changePercent} color="bg-red-500" />
+            <StatCard title={t('net_sales')} value={`₱${(Number(kpis.netSales.value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={TrendingUp} changeAmount={isNaN(kpis.netSales.change) ? 0 : kpis.netSales.change} changePercent={isNaN(kpis.netSales.changePercent) ? 0 : kpis.netSales.changePercent} color="bg-blue-600" />
+            <StatCard title={t('expenses')} value={`₱${(Number(kpis.expense.value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Receipt} changeAmount={isNaN(kpis.expense.change) ? 0 : kpis.expense.change} changePercent={isNaN(kpis.expense.changePercent) ? 0 : kpis.expense.changePercent} color="bg-orange-500" />
+            <StatCard title={t('gross_profit')} value={`₱${(Number(kpis.grossProfit.value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={CircleDollarSign} changeAmount={isNaN(kpis.grossProfit.change) ? 0 : kpis.grossProfit.change} changePercent={isNaN(kpis.grossProfit.changePercent) ? 0 : kpis.grossProfit.changePercent} color="bg-emerald-600" />
           </>
         ) : (
           <>
@@ -1353,6 +1758,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <span>View Report</span>
               </button>
             </div>
+            <StatCard title={t('refund')} value="₱0.00" icon={ArrowDownRight} color="bg-red-500" />
             <StatCard title={t('net_sales')} value={`₱${totalRevenue.toLocaleString()}`} icon={TrendingUp} color="bg-blue-600" />
             <StatCard title={t('expenses')} value={`₱${totalExpenses.toLocaleString()}`} icon={Receipt} color="bg-orange-500" />
             <StatCard title={t('gross_profit')} value={`₱${profit.toLocaleString()}`} icon={CircleDollarSign} color="bg-emerald-600" />
@@ -1481,6 +1887,31 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 </h2>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    setValidationModalOpen(true);
+                    setValidationLoading(true);
+                    try {
+                      // Use the same date range as the chart to ensure consistency
+                      const result = await validateImportedData(
+                        selectedBranchId !== 'all' ? selectedBranchId : null,
+                        kimsBrotherChartDateStart,
+                        kimsBrotherChartDateEnd
+                      );
+                      setValidationResult(result);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Failed to validate data');
+                      setValidationResult(null);
+                    } finally {
+                      setValidationLoading(false);
+                    }
+                  }}
+                  className="px-4 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex items-center gap-2 border border-blue-200"
+                  title="Validate imported data totals"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Validate Data
+                </button>
                 <button
                   onClick={() => setTotalSalesDetailModalOpen(true)}
                   className="px-4 py-1.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-colors flex items-center gap-2"
@@ -1620,10 +2051,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       {kimsBrotherChartPeriod === 'weekly' && <Check className="w-4 h-4" />}
                     </button>
                     <button
-                      disabled
-                      className="w-full px-4 py-2 text-left text-sm text-slate-400 cursor-not-allowed"
+                      onClick={() => {
+                        setKimsBrotherChartPeriod('monthly');
+                        setKimsBrotherChartPeriodDropdownOpen(false);
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between ${
+                        kimsBrotherChartPeriod === 'monthly' ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
+                      }`}
                     >
-                      monthly
+                      <span>monthly</span>
+                      {kimsBrotherChartPeriod === 'monthly' && <Check className="w-4 h-4" />}
                     </button>
                     <button
                       onClick={() => {
@@ -1659,10 +2096,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent z-10 pointer-events-none" />
             {chartLoading ? (
               <ChartLoadingSkeleton type={kimsBrotherChartType} />
+            ) : chartData.length === 0 || chartError ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
+                <p className="text-sm font-semibold text-slate-500">No sales data available</p>
+                <p className="text-xs text-slate-400 mt-1">Sales data will appear here once orders are paid and settled</p>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height={320} minWidth={0}>
                 {kimsBrotherChartType === 'bar' ? (
-                  <BarChart data={displayedSalesChartData}>
+                  <BarChart data={chartData}>
                     <defs>
                       <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
@@ -1675,12 +2118,25 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       axisLine={false} 
                       tickLine={false} 
                       tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} 
+                      interval={0}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
                     />
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
                       tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}}
-                      tickFormatter={(value) => `₱${(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => {
+                        const numValue = Number(value);
+                        if (numValue >= 1000000) {
+                          return `₱${(numValue / 1000000).toFixed(1)}M`;
+                        } else if (numValue >= 1000) {
+                          return `₱${(numValue / 1000).toFixed(0)}k`;
+                        } else {
+                          return `₱${numValue.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+                        }
+                      }}
                     />
                     <Tooltip 
                       cursor={{fill: 'rgba(34, 197, 94, 0.1)', stroke: '#22c55e', strokeWidth: 1}}
@@ -1693,6 +2149,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       }}
                       formatter={(value: number) => [`₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, t('total_sales')]}
                       labelStyle={{fontWeight: 600, color: '#1e293b', marginBottom: '4px'}}
+                      labelFormatter={(label) => label}
                     />
                     <Bar 
                       dataKey="sales" 
@@ -1704,11 +2161,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     />
                   </BarChart>
                 ) : (
-                  <LineChart data={displayedSalesChartData}>
+                  <LineChart data={chartData}>
                     <defs>
                       <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#16a34a" stopOpacity={0.8} />
+                        <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
@@ -1717,12 +2174,26 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       axisLine={false} 
                       tickLine={false} 
                       tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} 
+                      interval={0}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
                     />
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
                       tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}}
-                      tickFormatter={(value) => `₱${(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => {
+                        const numValue = Number(value);
+                        if (numValue >= 1000000) {
+                          return `₱${(numValue / 1000000).toFixed(1)}M`;
+                        } else if (numValue >= 1000) {
+                          return `₱${(numValue / 1000).toFixed(0)}k`;
+                        } else {
+                          return `₱${numValue.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+                        }
+                      }}
+                      domain={[0, 'auto']}
                     />
                     <Tooltip 
                       cursor={{stroke: '#22c55e', strokeWidth: 1}}
@@ -1735,6 +2206,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       }}
                       formatter={(value: number) => [`₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, t('total_sales')]}
                       labelStyle={{fontWeight: 600, color: '#1e293b', marginBottom: '4px'}}
+                      labelFormatter={(label) => label}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="sales" 
+                      fill="url(#lineGradient)" 
+                      stroke="none"
                     />
                     <Line 
                       type="monotone" 
@@ -1742,8 +2220,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       name={t('total_sales')} 
                       stroke="#22c55e" 
                       strokeWidth={3}
-                      dot={{ fill: '#22c55e', r: 4 }}
-                      activeDot={{ r: 6 }}
+                      dot={{ fill: '#22c55e', r: 4, strokeWidth: 2, stroke: '#ffffff' }}
+                      activeDot={{ r: 6, stroke: '#22c55e', strokeWidth: 2, fill: '#ffffff' }}
                       style={{filter: 'drop-shadow(0 2px 4px rgba(34, 197, 94, 0.2))'}}
                     />
                   </LineChart>
@@ -1883,22 +2361,28 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           <div className="relative mb-4">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
               <div className="w-1.5 h-1.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse" />
-              <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · Last 30 days</p>
+              <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · {formatDateForDisplay(salesByProductDateStart)} - {formatDateForDisplay(salesByProductDateEnd)}</p>
             </div>
           </div>
           
-          {popularMenuItemsLoading ? (
+          {goodsSalesLoading ? (
             <div className="flex items-center justify-center py-12 text-slate-400">
               <Loader2 className="w-8 h-8 animate-spin" />
+            </div>
+          ) : top5GoodsSales.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <Trophy className="w-12 h-12 mb-3 opacity-50" />
+              <p className="text-sm font-semibold text-slate-500">No sales data available</p>
+              <p className="text-xs text-slate-400 mt-1">Sales data will appear here once products are sold</p>
             </div>
           ) : (
             <div className="relative space-y-0">
               <div className="flex justify-between items-center mb-3 px-2">
                 <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{t('net_sales')}</span>
               </div>
-              {top5PopularMenuItems.map((item, index) => (
+              {top5GoodsSales.map((item, index) => (
                 <div
-                  key={item.IDNo}
+                  key={item.id}
                   className={`group/item relative flex items-center justify-between p-3.5 rounded-xl transition-all duration-300 ${
                     index < 4 ? 'border-b border-slate-100' : ''
                   } hover:bg-gradient-to-r hover:from-slate-50 hover:to-purple-50/30 hover:shadow-sm hover:border-purple-100`}
@@ -1916,12 +2400,12 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                         />
                       )}
                     </div>
-                    <span className="text-sm font-semibold text-slate-900 truncate">{item.MENU_NAME}</span>
+                    <span className="text-sm font-semibold text-slate-900 truncate">{item.goods}</span>
                   </div>
                   <div className="flex-shrink-0 ml-3">
                     <div className="px-3 py-1.5 bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg border border-slate-200 group-hover/item:from-purple-50 group-hover/item:to-pink-50 group-hover/item:border-purple-200 transition-all">
                       <span className="text-sm font-bold text-slate-900 tabular-nums">
-                        ₱{Number(item.total_revenue ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₱{Number(item.net_sales ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>
@@ -1959,7 +2443,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {top5PopularMenuItems.slice(0, 5).map((item, idx) => {
+              {top5ProductsFromDailySales.slice(0, 5).map((item, idx) => {
                 const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
                 const rgb = color.startsWith('#') 
                   ? {
@@ -1970,7 +2454,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   : { r: 148, g: 163, b: 184 };
                 return (
                   <div 
-                    key={item.IDNo} 
+                    key={`${item.menu_id}-${idx}`} 
                     className="group/legend relative flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all duration-200"
                     style={{ 
                       background: `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.02))`
@@ -1990,7 +2474,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       className="text-[8px] font-bold truncate max-w-[55px] group-hover/legend:scale-105 transition-transform"
                       style={{ color: color }}
                     >
-                      {item.MENU_NAME}
+                      {item.name}
                     </span>
                   </div>
                 );
@@ -1998,33 +2482,76 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             </div>
           </div>
           
-          <div className="relative mb-3">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-md border border-indigo-100 shadow-sm">
-              <div className="relative flex-shrink-0">
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full blur-sm opacity-50" />
-                <div className="relative w-1.5 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full animate-pulse" />
+          <div className="relative mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-md border border-indigo-100 shadow-sm">
+                <div className="relative flex-shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full blur-sm opacity-50" />
+                  <div className="relative w-1.5 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full animate-pulse" />
+                </div>
+                <p className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName}</p>
               </div>
-              <p className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · Last 30 days</p>
+              
+              {/* Date Range Picker */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-700 whitespace-nowrap">Date Range:</label>
+                <input
+                  ref={salesByProductWidgetDatePickerRef}
+                  type="text"
+                  readOnly
+                  value={`${salesByProductDateStart} - ${salesByProductDateEnd}`}
+                  placeholder="Select date range"
+                  className="px-3 py-1.5 text-xs border-2 border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-slate-900 font-medium cursor-pointer min-w-[220px]"
+                />
+              </div>
+              
+              {/* Last 30 Days Button */}
+              <button
+                onClick={() => {
+                  const today = new Date();
+                  const thirtyDaysAgo = new Date();
+                  thirtyDaysAgo.setDate(today.getDate() - 30);
+                  setSalesByProductDateStart(thirtyDaysAgo.toISOString().slice(0, 10));
+                  setSalesByProductDateEnd(today.toISOString().slice(0, 10));
+                }}
+                className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md"
+              >
+                Last 30 Days
+              </button>
             </div>
+            
+            <button
+              onClick={() => setSalesByProductModalOpen(true)}
+              className="group/btn relative flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-bold rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>View Sales by Product</span>
+            </button>
           </div>
           
           <div className="relative h-72 md:h-96 min-h-[280px]">
             {/* Shine effect on hover */}
             <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent z-10 pointer-events-none" />
             
-            {popularMenuItemsLoading || dailySalesLoading ? (
+            {goodsSalesLoading || dailySalesForWidgetLoading ? (
               <ChartLoadingSkeleton type="stacked" />
-            ) : productSalesStackedChartData.length === 0 || !top5PopularMenuItems || top5PopularMenuItems.length === 0 ? (
+            ) : !dailySalesByProductForWidget || dailySalesByProductForWidget.length === 0 ? (
               <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
                 <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
                 <p className="text-sm font-semibold text-slate-500">No sales data available</p>
                 <p className="text-xs text-slate-400 mt-1">Sales data will appear here once orders are placed</p>
               </div>
+            ) : productSalesStackedChartDataForWidget.length === 0 || !top5ProductsFromDailySales || top5ProductsFromDailySales.length === 0 ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
+                <p className="text-sm font-semibold text-slate-500">No products found in date range</p>
+                <p className="text-xs text-slate-400 mt-1">Try selecting a different date range</p>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height={288} minWidth={0} minHeight={280}>
-                <BarChart data={productSalesStackedChartData} margin={{ left: 8, right: 16, bottom: 32, top: 8 }}>
+                <BarChart data={productSalesStackedChartDataForWidget} margin={{ left: 8, right: 16, bottom: 32, top: 8 }}>
                   <defs>
-                    {top5PopularMenuItems.map((item, idx) => {
+                    {top5ProductsFromDailySales.map((item, idx) => {
                       const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
                       const rgb = color.startsWith('#') 
                         ? {
@@ -2034,7 +2561,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                           }
                         : { r: 148, g: 163, b: 184 };
                       return (
-                        <linearGradient key={item.IDNo} id={`productGradient${idx}`} x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient key={`${item.menu_id}-${idx}`} id={`productGradientWidget${idx}`} x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor={`rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`} stopOpacity={1} />
                           <stop offset="100%" stopColor={`rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})`} stopOpacity={0.85} />
                         </linearGradient>
@@ -2074,7 +2601,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     formatter={(value: number, name: string) => {
                       const productIdx = parseInt(name.replace('p', ''), 10);
                       const color = TOP_PRODUCT_COLORS[productIdx] ?? '#94a3b8';
-                      const productName = productKeyToName[name] ?? name;
+                      const productName = productKeyToNameForWidget[name] ?? name;
                       return [
                         <span key={name} style={{ color: color, fontWeight: 600 }}>
                           {productName}: ₱{Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -2102,7 +2629,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                               .map((entry: any, idx: number) => {
                                 const productIdx = parseInt(entry.dataKey?.replace('p', '') || '0', 10);
                                 const color = TOP_PRODUCT_COLORS[productIdx] ?? '#94a3b8';
-                                const productName = productKeyToName[entry.dataKey] ?? entry.dataKey;
+                                const productName = productKeyToNameForWidget[entry.dataKey] ?? entry.dataKey;
                                 const value = Number(entry.value) || 0;
                                 const rgb = color.startsWith('#') 
                                   ? {
@@ -2146,7 +2673,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       );
                     }}
                   />
-                  {top5PopularMenuItems.map((item, idx) => {
+                  {top5ProductsFromDailySales.map((item, idx) => {
                     const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
                     const rgb = color.startsWith('#') 
                       ? {
@@ -2155,13 +2682,15 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                           b: parseInt(color.slice(5, 7), 16)
                         }
                       : { r: 148, g: 163, b: 184 };
+                    // Only the topmost bar (last one) should have rounded top corners
+                    const isTopBar = idx === top5ProductsFromDailySales.length - 1;
                     return (
                       <Bar
-                        key={item.IDNo}
+                        key={`${item.menu_id}-${idx}`}
                         dataKey={`p${idx}`}
                         stackId="products"
-                        fill={`url(#productGradient${idx})`}
-                        radius={[6, 6, 0, 0]}
+                        fill={`url(#productGradientWidget${idx})`}
+                        radius={isTopBar ? [6, 6, 0, 0] : undefined}
                         isAnimationActive={true}
                         animationDuration={800}
                         style={{
@@ -2353,13 +2882,15 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <button
                   onClick={() => {
                     const csvContent = [
-                      ['Category', 'Sales quantity', 'Net sales', 'Unit cost', 'Total Revenue'],
+                      ['Category', 'Sales quantity', 'Total sales', 'Refund quantity', 'Refund amount', 'Discounts', 'Net sales'],
                       ...salesByCategoryData.map(row => [
                         row.category || '',
                         row.quantity || 0,
-                        row.net_sales || 0,
-                        row.unit_cost || 0,
-                        row.total_revenue || 0
+                        row.total_sales || row.total_revenue || 0,
+                        row.refund_quantity || 0,
+                        row.refund_amount || 0,
+                        row.discounts || 0,
+                        row.net_sales || 0
                       ])
                     ].map(row => row.join(',')).join('\n');
                     
@@ -2394,7 +2925,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
                       const lines = text.split(/\r?\n/).filter(Boolean);
                       if (lines.length < 2) {
-                        alert('CSV must have header row plus at least one data row. Format: Category, Sales quantity, Net sales, Unit cost, Total Revenue');
+                        alert('CSV must have header row plus at least one data row. Format: Category, Sales quantity, Total sales, Refund quantity, Refund amount, Discounts, Net sales');
                         return;
                       }
                       const byComma = lines[0].split(',');
@@ -2430,27 +2961,40 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       };
                       const categoryIdx = col(['category'], 0);
                       const quantityIdx = col(['sales_quantity', 'sales quantity', 'quantity'], 1);
-                      const netSalesIdx = col(['net_sales', 'net sales'], 2);
-                      const unitCostIdx = col(['unit_cost', 'unit cost'], 3);
-                      const totalRevenueIdx = col(['total_revenue', 'total revenue'], 4);
-                      const rows: Array<{ category: string; sales_quantity: number; net_sales: number; unit_cost: number; total_revenue: number }> = [];
+                      const totalSalesIdx = col(['total_sales', 'total sales', 'total_revenue', 'total revenue', 'revenue'], 2);
+                      const refundQuantityIdx = col(['refund_quantity', 'refund quantity'], 3);
+                      const refundAmountIdx = col(['refund_amount', 'refund amount'], 4);
+                      const discountsIdx = col(['discounts', 'discount'], 5);
+                      const netSalesIdx = col(['net_sales', 'net sales'], 6);
+                      const rows: Array<{ category: string; sales_quantity: number; total_sales: number; refund_quantity: number; refund_amount: number; discounts: number; net_sales: number }> = [];
                       for (let i = 1; i < lines.length; i++) {
                         const cells = splitCsvRow(lines[i], delim);
                         const category = (cells[categoryIdx] ?? '').trim();
                         if (!category) continue;
                         const salesQuantity = parseInt(cells[quantityIdx] ?? '0', 10) || 0;
+                        const totalSales = parseNum(cells[totalSalesIdx] ?? '0');
+                        const refundQuantity = parseInt(cells[refundQuantityIdx] ?? '0', 10) || 0;
+                        const refundAmount = parseNum(cells[refundAmountIdx] ?? '0');
+                        const discounts = parseNum(cells[discountsIdx] ?? '0');
                         const netSales = parseNum(cells[netSalesIdx] ?? '0');
-                        const unitCost = parseNum(cells[unitCostIdx] ?? '0');
-                        const totalRevenue = parseNum(cells[totalRevenueIdx] ?? '0');
-                        rows.push({ category, sales_quantity: salesQuantity, net_sales: netSales, unit_cost: unitCost, total_revenue: totalRevenue });
+                        rows.push({ category, sales_quantity: salesQuantity, total_sales: totalSales, refund_quantity: refundQuantity, refund_amount: refundAmount, discounts, net_sales: netSales });
                       }
                       if (rows.length === 0) {
-                        alert('No valid rows to import. Ensure column order: Category, Sales quantity, Net sales, Unit cost, Total Revenue');
+                        alert('No valid rows to import. Ensure column order: Category, Sales quantity, Total sales, Refund quantity, Refund amount, Discounts, Net sales');
                         return;
                       }
                       const result = await importSalesCategoryReport(rows);
                       alert(`Successfully imported ${result.inserted} record(s).`);
                       loadSalesByCategory();
+                      // Reload dashboard data to refresh cards and graphs
+                      loadStats();
+                      loadKpis();
+                      loadChart();
+                      if (isKimsBrothersDashboard) {
+                        loadKimsBrotherChart();
+                      }
+                      loadPopularMenuItems();
+                      loadDailySalesByProduct();
                     } catch (err) {
                       alert(err instanceof Error ? err.message : 'Failed to import');
                     } finally {
@@ -2629,14 +3173,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                               </div>
                             </th>
                             <th className="text-center px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">Sales quantity</th>
-                            <th className="text-center px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">Net Sales</th>
-                            <th className="text-center px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">Unit Cost</th>
-                            <th className="text-right pr-4 pl-6 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">
-                              <div className="flex items-center justify-end gap-2">
-                                <span className="text-slate-800">Total Revenue</span>
-                                <div className="w-1.5 h-4 bg-gradient-to-b from-purple-500 to-pink-500 rounded-full shadow-sm" />
-                              </div>
-                            </th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">Total Sales</th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">Refund Qty</th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">Refund Amount</th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">Discounts</th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">Net Sales</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
@@ -2658,19 +3199,29 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                                   {Number(row.quantity || row.QUANTITY || 0).toLocaleString()}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-sm tabular-nums">
+                              <td className="px-4 py-3 text-right text-sm tabular-nums">
+                                <span className="inline-block px-2.5 py-1 rounded-lg font-black bg-gradient-to-r from-purple-50 to-pink-50 text-purple-800 border-2 border-purple-200 group-hover/row:from-purple-100 group-hover/row:to-pink-100 group-hover/row:border-purple-300 group-hover/row:shadow-md transition-all">
+                                  {formatPeso(row.total_sales || row.total_revenue || row.TOTAL_SALES || row.TOTAL_REVENUE || 0)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center text-sm tabular-nums">
+                                <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-100 text-slate-700">
+                                  {Number(row.refund_quantity || row.REFUND_QUANTITY || 0).toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right text-sm tabular-nums">
+                                <span className="inline-block px-2 py-1 rounded-md font-bold bg-red-50 text-red-700 border border-red-200">
+                                  {formatPeso(row.refund_amount || row.REFUND_AMOUNT || 0)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right text-sm tabular-nums">
+                                <span className="inline-block px-2 py-1 rounded-md font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  {formatPeso(row.discounts || row.DISCOUNTS || 0)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right text-sm tabular-nums">
                                 <span className="inline-block px-2 py-1 rounded-md font-bold bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 border border-purple-200/50 group-hover/row:from-purple-100 group-hover/row:to-pink-100 group-hover/row:border-purple-300 transition-all">
                                   {formatPeso(row.net_sales || row.NET_SALES || 0)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-sm tabular-nums">
-                                <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-50 text-slate-600 border border-slate-200">
-                                  {formatPeso(row.unit_cost || row.UNIT_COST || 0)}
-                                </span>
-                              </td>
-                              <td className="pr-4 pl-6 py-3 text-right tabular-nums text-sm font-semibold">
-                                <span className="inline-block px-2.5 py-1 rounded-lg font-black bg-gradient-to-r from-purple-50 to-pink-50 text-purple-800 border-2 border-purple-200 group-hover/row:from-purple-100 group-hover/row:to-pink-100 group-hover/row:border-purple-300 group-hover/row:shadow-md transition-all">
-                                  {formatPeso(row.total_revenue || row.TOTAL_REVENUE || 0)}
                                 </span>
                               </td>
                             </tr>
@@ -2709,6 +3260,482 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                             setSalesByCategoryPage(1);
                           }}
                           className="px-3 py-1.5 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-slate-900 font-medium"
+                        >
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Sales by Product Modal */}
+      {salesByProductModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header - Simple Design matching dashboard cards */}
+            <div className="p-4 md:p-6 border-b border-slate-200 flex items-center justify-between bg-white">
+              <div className="flex items-center gap-4 flex-1">
+                {/* EXPORT Button */}
+                <button
+                  onClick={() => {
+                    const csvContent = [
+                      ['id', 'product_name', 'category', 'sales_quantity', 'total_sales', 'refund_quantity', 'refund_amount', 'discounts', 'net_sales', 'unit_cost', 'total_revenue', 'created_at'],
+                      ...goodsSalesData.map(item => [
+                        item.id || '',
+                        item.goods || '',
+                        item.category || '',
+                        item.sales_quantity || 0,
+                        item.total_sales || 0,
+                        item.refund_quantity || 0,
+                        item.refund_amount || 0,
+                        item.discounts || 0,
+                        item.net_sales || 0,
+                        item.unit_cost || 0,
+                        item.total_revenue || 0,
+                        item.created_at || ''
+                      ])
+                    ].map(row => row.join(',')).join('\n');
+                    
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `sales-by-product-${salesByProductDateStart}-${salesByProductDateEnd}.csv`);
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-bold rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>EXPORT</span>
+                </button>
+
+                {/* IMPORT Button */}
+                <input
+                  ref={goodsSalesImportInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setGoodsSalesImportLoading(true);
+                    try {
+                      let text = await file.text();
+                      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+                      const lines = text.split(/\r?\n/).filter(Boolean);
+                      if (lines.length < 2) {
+                        alert('CSV must have header row plus at least one data row. Expected columns: goods/product_name, category, sales_quantity, total_sales, refund_quantity, refund_amount, discounts, net_sales, unit_cost, total_revenue');
+                        return;
+                      }
+                      const byComma = lines[0].split(',');
+                      const bySemi = lines[0].split(';');
+                      const byTab = lines[0].split('\t');
+                      const delim = byTab.length > bySemi.length && byTab.length > byComma.length ? '\t' : bySemi.length > byComma.length ? ';' : ',';
+                      const splitCsvRow = (line: string, d: string): string[] => {
+                        if (d !== ',') return line.split(d).map(c => c.trim().replace(/^["']|["']$/g, ''));
+                        const out: string[] = [];
+                        let cur = '';
+                        let inQuotes = false;
+                        for (let i = 0; i < line.length; i++) {
+                          const c = line[i];
+                          if (c === '"') inQuotes = !inQuotes;
+                          else if (c === d && !inQuotes) {
+                            out.push(cur.trim().replace(/^["']|["']$/g, ''));
+                            cur = '';
+                          } else cur += c;
+                        }
+                        out.push(cur.trim().replace(/^["']|["']$/g, ''));
+                        return out;
+                      };
+                      const parseNum = (val: string) => {
+                        if (!val) return 0;
+                        const cleaned = val.toString().trim()
+                          .replace(/^P\s*/i, '')
+                          .replace(/^₱\s*/i, '')
+                          .replace(/^PHP\s*/i, '')
+                          .replace(/,/g, '')
+                          .replace(/\s+/g, '');
+                        const parsed = parseFloat(cleaned);
+                        return isNaN(parsed) ? 0 : parsed;
+                      };
+                      const headers = splitCsvRow(lines[0], delim).map(h => h.trim().replace(/^["']|["']$/g, ''));
+                      const headersLower = headers.map(h => h.toLowerCase());
+                      
+                      const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+                      
+                      const col = (candidates: string[], fallback: number) => {
+                        for (const c of candidates) {
+                          const nc = norm(c);
+                          let idx = headersLower.findIndex(h => norm(h) === nc);
+                          if (idx >= 0) return idx;
+                          idx = headersLower.findIndex(h => {
+                            const nh = norm(h);
+                            return nh === nc || nh.includes(nc) || nc.includes(nh);
+                          });
+                          if (idx >= 0) return idx;
+                        }
+                        return fallback;
+                      };
+                      
+                      const goodsIdx = col(['상품', 'goods', 'product_name', 'product name', 'product', 'item', 'item_name', 'item name'], 0);
+                      const categoryIdx = col(['카테고리', 'category', 'cat', 'categories', 'cat_name'], 2);
+                      const quantityIdx = col(['판매 수량', 'sales_quantity', 'sales quantity', 'quantity', 'qty', 'sales_qty', 'sales qty', 'sold', 'sold_quantity'], 3);
+                      const totalSalesIdx = col(['총 매출액', 'total_sales', 'total sales', 'total', 'sales', 'gross_sales', 'gross sales', 'sales_amount', 'sales amount'], 4);
+                      const refundQuantityIdx = col(['환불 수량', 'refund_quantity', 'refund quantity', 'refund_qty', 'refund qty', 'refunded_quantity', 'refunded quantity'], 5);
+                      const refundAmountIdx = col(['환불', 'refund_amount', 'refund amount', 'refund', 'refunded_amount', 'refunded amount', 'refund_total'], 6);
+                      const discountsIdx = col(['할인', 'discounts', 'discount', 'discount_amount', 'discount amount', 'discount_total', 'discount total'], 7);
+                      const netSalesIdx = col(['순매출액', 'net_sales', 'net sales', 'net', 'net_amount', 'net amount', 'net_total', 'net total'], 8);
+                      const unitCostIdx = col(['상품 단가', 'unit_cost', 'unit cost', 'cost', 'unit_price', 'unit price', 'cost_per_unit', 'cost per unit'], 9);
+                      const totalRevenueIdx = col(['매출 총 이익', 'total_revenue', 'total revenue', 'revenue', 'total_rev', 'total rev', 'income', 'total_income'], 10);
+                      
+                      const rows: Array<{ goods: string; category: string; sales_quantity: number; total_sales: number; refund_quantity: number; refund_amount: number; discounts: number; net_sales: number; unit_cost: number; total_revenue: number }> = [];
+                      for (let i = 1; i < lines.length; i++) {
+                        const cells = splitCsvRow(lines[i], delim);
+                        const goods = (cells[goodsIdx] ?? '').trim();
+                        if (!goods) continue;
+                        
+                        const category = (cells[categoryIdx] ?? '').trim() || 'Uncategorized';
+                        const salesQuantity = parseNum(cells[quantityIdx] ?? '0');
+                        const totalSales = parseNum(cells[totalSalesIdx] ?? '0');
+                        const refundQuantity = parseNum(cells[refundQuantityIdx] ?? '0');
+                        const refundAmount = parseNum(cells[refundAmountIdx] ?? '0');
+                        const discounts = parseNum(cells[discountsIdx] ?? '0');
+                        const netSales = parseNum(cells[netSalesIdx] ?? '0');
+                        const unitCost = parseNum(cells[unitCostIdx] ?? '0');
+                        const totalRevenue = parseNum(cells[totalRevenueIdx] ?? '0');
+                        
+                        rows.push({ goods, category, sales_quantity: salesQuantity, total_sales: totalSales, refund_quantity: refundQuantity, refund_amount: refundAmount, discounts, net_sales: netSales, unit_cost: unitCost, total_revenue: totalRevenue });
+                      }
+                      if (rows.length === 0) {
+                        alert('No valid rows to import. Expected columns: goods/product_name, category, sales_quantity, total_sales, refund_quantity, refund_amount, discounts, net_sales, unit_cost, total_revenue');
+                        return;
+                      }
+                      const result = await importGoodsSalesReport(rows);
+                      alert(`Successfully imported ${result.inserted} record(s).`);
+                      loadGoodsSales();
+                      // Reload dashboard data to refresh cards and graphs
+                      loadStats();
+                      loadKpis();
+                      loadChart();
+                      if (isKimsBrothersDashboard) {
+                        loadKimsBrotherChart();
+                      }
+                      loadPopularMenuItems();
+                      loadDailySalesByProduct();
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Failed to import');
+                    } finally {
+                      setGoodsSalesImportLoading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => goodsSalesImportInputRef.current?.click()}
+                  disabled={goodsSalesImportLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-bold rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {goodsSalesImportLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  <span>IMPORT</span>
+                </button>
+                
+                {/* Title Section */}
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 via-purple-500 to-pink-500 rounded-xl blur-md opacity-40" />
+                    <div className="relative bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-2.5 rounded-xl shadow-lg">
+                      <TrendingUp className="w-5 h-5 text-white drop-shadow-md" />
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900">Sales by Product</h2>
+                    <p className="text-sm text-slate-600">{currentContextName}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="More options"
+                >
+                  <MoreVertical className="w-5 h-5 text-slate-600" />
+                </button>
+                <button
+                  onClick={() => setSalesByProductModalOpen(false)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-600" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-hidden flex flex-col bg-white">
+              {/* Filters Section - Simple Design */}
+              <div className="p-4 md:p-6 border-b border-slate-200 bg-white">
+                <div className="flex items-center gap-4 flex-wrap">
+                  {/* Date Range */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">Date Range:</label>
+                    <input
+                      ref={salesByProductDatePickerRef}
+                      type="text"
+                      readOnly
+                      value={`${salesByProductDateStart} - ${salesByProductDateEnd}`}
+                      placeholder="Select date range"
+                      className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-slate-900 font-medium cursor-pointer min-w-[220px]"
+                    />
+                  </div>
+                  
+                  {/* Last 30 Days Button */}
+                  <button
+                    onClick={() => {
+                      const today = new Date();
+                      const thirtyDaysAgo = new Date();
+                      thirtyDaysAgo.setDate(today.getDate() - 30);
+                      setSalesByProductDateStart(thirtyDaysAgo.toISOString().slice(0, 10));
+                      setSalesByProductDateEnd(today.toISOString().slice(0, 10));
+                    }}
+                    className="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md"
+                  >
+                    Last 30 Days
+                  </button>
+                  
+                  {/* Employee Filter Dropdown */}
+                  <div className="relative sales-by-product-employee-filter-dropdown ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => setSalesByProductEmployeeDropdownOpen(!salesByProductEmployeeDropdownOpen)}
+                      className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-all text-sm font-medium text-slate-700"
+                    >
+                      <User className="w-4 h-4 text-slate-500" />
+                      <span>
+                        {salesByProductEmployeeFilter === 'all' ? 'All employees' : 'Operator'}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${salesByProductEmployeeDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {salesByProductEmployeeDropdownOpen && (
+                      <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-50 min-w-[200px]">
+                        <div className="p-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSalesByProductEmployeeFilter('all');
+                              setSalesByProductEmployeeDropdownOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-50 transition-colors text-left"
+                          >
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                              salesByProductEmployeeFilter === 'all' 
+                                ? 'bg-emerald-500 border-emerald-500' 
+                                : 'border-slate-300'
+                            }`}>
+                              {salesByProductEmployeeFilter === 'all' && (
+                                <Check className="w-3 h-3 text-white" />
+                              )}
+                            </div>
+                            <span className="text-sm font-medium text-slate-700">All employees</span>
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSalesByProductEmployeeFilter('operator');
+                              setSalesByProductEmployeeDropdownOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-50 transition-colors text-left"
+                          >
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                              salesByProductEmployeeFilter === 'operator' 
+                                ? 'bg-emerald-500 border-emerald-500' 
+                                : 'border-slate-300'
+                            }`}>
+                              {salesByProductEmployeeFilter === 'operator' && (
+                                <Check className="w-3 h-3 text-white" />
+                              )}
+                            </div>
+                            <span className="text-sm font-medium text-slate-700">Operator</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
+              {goodsSalesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                </div>
+              ) : !goodsSalesData || goodsSalesData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
+                  <p className="text-sm font-semibold text-slate-500">No sales data available</p>
+                  <p className="text-xs text-slate-400 mt-1">Sales data will appear here once orders are placed</p>
+                </div>
+              ) : (() => {
+                // Pagination calculation
+                const totalPages = Math.ceil(goodsSalesData.length / salesByProductPageSize);
+                const startIndex = (salesByProductPage - 1) * salesByProductPageSize;
+                const endIndex = startIndex + salesByProductPageSize;
+                const paginatedData = goodsSalesData.slice(startIndex, endIndex);
+                
+                return (
+                  <>
+                    <div className="flex-1 overflow-auto">
+                      <table className="w-full">
+                        <thead className="sticky top-0 z-20">
+                          <tr className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 border-b-2 border-indigo-200 shadow-sm">
+                            <th className="text-center px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">id</th>
+                            <th className="text-left pl-4 pr-6 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-4 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full shadow-sm" />
+                                <span className="text-slate-800">goods</span>
+                              </div>
+                            </th>
+                            <th className="text-left px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">category</th>
+                            <th className="text-center px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">sales_quantity</th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">total_sales</th>
+                            <th className="text-center px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">refund_quantity</th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">refund_amount</th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">discounts</th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">net_sales</th>
+                            <th className="text-right px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">unit_cost</th>
+                            <th className="text-right pr-4 pl-6 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">
+                              <div className="flex items-center justify-end gap-2">
+                                <span className="text-slate-800">total_revenue</span>
+                                <div className="w-1.5 h-4 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full shadow-sm" />
+                              </div>
+                            </th>
+                            <th className="text-left px-4 py-4 text-xs text-slate-800 font-black uppercase tracking-wider">created_at</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {paginatedData.map((item, idx) => {
+                            const color = TOP_PRODUCT_COLORS[idx % TOP_PRODUCT_COLORS.length] ?? '#94a3b8';
+                            return (
+                              <tr
+                                key={item.id || idx}
+                                className="group/row transition-all duration-200 hover:bg-slate-50 text-slate-700"
+                              >
+                                <td className="px-4 py-3 text-center text-sm tabular-nums font-semibold text-slate-600">
+                                  {item.id || '—'}
+                                </td>
+                                <td className="pl-4 pr-6 py-3 text-sm font-semibold">
+                                  <div className="flex items-center gap-2">
+                                    <div className="relative flex-shrink-0">
+                                      <div 
+                                        className="w-1.5 h-1.5 rounded-full"
+                                        style={{ backgroundColor: color }}
+                                      />
+                                    </div>
+                                    <span className="font-bold text-slate-900">{item.goods || '—'}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm">
+                                  <span className="inline-block px-2 py-1 rounded-md font-semibold bg-slate-100 text-slate-700">
+                                    {item.category || '—'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center text-sm tabular-nums">
+                                  <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-100 text-slate-700 group-hover/row:bg-blue-100 group-hover/row:text-blue-800 transition-all">
+                                    {Number(item.sales_quantity || 0).toLocaleString()}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm tabular-nums">
+                                  <span className="inline-block px-2 py-1 rounded-md font-bold bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 border border-purple-200">
+                                    {formatPeso(item.total_sales || 0)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center text-sm tabular-nums">
+                                  <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-100 text-slate-700">
+                                    {Number(item.refund_quantity || 0).toLocaleString()}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm tabular-nums">
+                                  <span className="inline-block px-2 py-1 rounded-md font-bold bg-red-50 text-red-700 border border-red-200">
+                                    {formatPeso(item.refund_amount || 0)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm tabular-nums">
+                                  <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-50 text-slate-600 border border-slate-200">
+                                    {formatPeso(item.discounts || 0)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm tabular-nums">
+                                  <span className="inline-block px-2 py-1 rounded-md font-bold bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200/50 group-hover/row:from-indigo-100 group-hover/row:to-purple-100 group-hover/row:border-indigo-300 transition-all">
+                                    {formatPeso(item.net_sales || 0)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm tabular-nums">
+                                  <span className="inline-block px-2 py-1 rounded-md font-bold bg-slate-50 text-slate-600 border border-slate-200">
+                                    {formatPeso(item.unit_cost || 0)}
+                                  </span>
+                                </td>
+                                <td className="pr-4 pl-6 py-3 text-right tabular-nums text-sm font-semibold">
+                                  <span className="inline-block px-2.5 py-1 rounded-lg font-black bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-800 border-2 border-indigo-200 group-hover/row:from-indigo-100 group-hover/row:to-purple-100 group-hover/row:border-indigo-300 group-hover/row:shadow-md transition-all">
+                                    {formatPeso(item.total_revenue || 0)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-slate-600">
+                                  {item.created_at ? new Date(item.created_at).toLocaleString() : '—'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* Pagination Controls */}
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200 bg-white sticky bottom-0 z-10">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSalesByProductPage(prev => Math.max(1, prev - 1))}
+                          disabled={salesByProductPage === 1}
+                          className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <span className="text-slate-700 font-bold">&lt;</span>
+                        </button>
+                        <span className="text-sm font-semibold text-slate-700 px-3">
+                          Page: {salesByProductPage} / {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setSalesByProductPage(prev => Math.min(totalPages, prev + 1))}
+                          disabled={salesByProductPage === totalPages}
+                          className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <span className="text-slate-700 font-bold">&gt;</span>
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-700">Page Line Count:</span>
+                        <select
+                          value={salesByProductPageSize}
+                          onChange={(e) => {
+                            setSalesByProductPageSize(Number(e.target.value));
+                            setSalesByProductPage(1);
+                          }}
+                          className="px-3 py-1.5 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-slate-900 font-medium"
                         >
                           <option value={10}>10</option>
                           <option value={20}>20</option>
@@ -2799,6 +3826,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       const result = await importDiscountReport(rows);
                       alert(`Successfully imported ${result.inserted} record(s).`);
                       loadDiscountReport();
+                      // Reload dashboard data to refresh cards and graphs
+                      loadStats();
+                      loadKpis();
+                      loadChart();
+                      if (isKimsBrothersDashboard) {
+                        loadKimsBrotherChart();
+                      }
                     } catch (err) {
                       alert(err instanceof Error ? err.message : 'Failed to import');
                     } finally {
@@ -3241,6 +4275,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       const msg = result.skipped ? `Imported ${result.inserted} receipt(s). Skipped ${result.skipped} duplicate(s).` : `Successfully imported ${result.inserted} receipt(s).`;
                       alert(msg);
                       loadReceiptStorageBox();
+                      // Reload dashboard data to refresh cards and graphs
+                      loadStats();
+                      loadKpis();
+                      loadChart();
+                      if (isKimsBrothersDashboard) {
+                        loadKimsBrotherChart();
+                      }
                     } catch (err) {
                       alert(err instanceof Error ? err.message : 'Failed to import');
                     } finally {
@@ -3664,29 +4705,59 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       const parseDatetime = (val: string): string | null => {
                         const v = (val ?? '').trim();
                         if (!v) return null;
-                        if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
-                          return v.includes(' ') ? v : `${v} 00:00:00`;
+                        
+                        // Handle YYYY-MM-DD format (preserve date without timezone conversion)
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+                          // Use 12:00:00 (noon) to avoid timezone edge cases at midnight
+                          return `${v} 12:00:00`;
                         }
+                        
+                        // Handle YYYY-MM-DD HH:mm:ss format
+                        if (/^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}(:\d{2})?$/.test(v)) {
+                          return v.includes(':') && v.split(':').length === 3 ? v : `${v}:00`;
+                        }
+                        
+                        // Handle timestamp (numeric)
                         if (/^\d+$/.test(v)) {
                           const ts = parseInt(v, 10);
                           const d = ts > 1e12 ? new Date(ts) : new Date(ts * 1000);
-                          return isNaN(d.getTime()) ? null : d.toISOString();
+                          if (isNaN(d.getTime())) return null;
+                          // Format as YYYY-MM-DD HH:mm:ss to preserve date
+                          const year = d.getFullYear();
+                          const month = String(d.getMonth() + 1).padStart(2, '0');
+                          const day = String(d.getDate()).padStart(2, '0');
+                          const hours = String(d.getHours()).padStart(2, '0');
+                          const minutes = String(d.getMinutes()).padStart(2, '0');
+                          const seconds = String(d.getSeconds()).padStart(2, '0');
+                          return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
                         }
+                        
+                        // Handle DD.MM.YY format
                         const dotMatch = v.match(/^(\d{2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?(\s+(\d{1,2}):(\d{2})(:(\d{2}))?)?$/);
                         if (dotMatch) {
                           const yy = parseInt(dotMatch[1], 10);
                           const m = parseInt(dotMatch[2], 10);
                           const d = parseInt(dotMatch[3], 10);
                           const year = yy < 100 ? (yy >= 50 ? 1900 + yy : 2000 + yy) : yy;
-                          const month = m - 1;
-                          const hour = dotMatch[5] ? parseInt(dotMatch[5], 10) : 0;
-                          const min = dotMatch[6] ? parseInt(dotMatch[6], 10) : 0;
-                          const sec = dotMatch[8] ? parseInt(dotMatch[8], 10) : 0;
-                          const date = new Date(year, month, d, hour, min, sec);
-                          return isNaN(date.getTime()) ? null : date.toISOString();
+                          const month = String(m).padStart(2, '0');
+                          const day = String(d).padStart(2, '0');
+                          const hour = dotMatch[5] ? String(parseInt(dotMatch[5], 10)).padStart(2, '0') : '00';
+                          const min = dotMatch[6] ? String(parseInt(dotMatch[6], 10)).padStart(2, '0') : '00';
+                          const sec = dotMatch[8] ? String(parseInt(dotMatch[8], 10)).padStart(2, '0') : '00';
+                          return `${year}-${month}-${day} ${hour}:${min}:${sec}`;
                         }
+                        
+                        // Try parsing as date and format without timezone conversion
                         const d = new Date(v);
-                        return isNaN(d.getTime()) ? null : d.toISOString();
+                        if (isNaN(d.getTime())) return null;
+                        // Format as YYYY-MM-DD HH:mm:ss to preserve date
+                        const year = d.getFullYear();
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const day = String(d.getDate()).padStart(2, '0');
+                        const hours = String(d.getHours()).padStart(2, '0');
+                        const minutes = String(d.getMinutes()).padStart(2, '0');
+                        const seconds = String(d.getSeconds()).padStart(2, '0');
+                        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
                       };
                       const rows: { sale_datetime: string; total_sales: number; refund: number; discount: number; net_sales: number; product_unit_price: number; gross_profit: number }[] = [];
                       for (let i = 1; i < lines.length; i++) {
@@ -3718,7 +4789,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       }
                       const result = await importSalesHourlySummary(rows, selectedBranchId !== 'all' ? selectedBranchId : null);
                       alert(`Successfully imported ${result.inserted} record(s).`);
+                      // Reload Total Sales Detail data
                       loadTotalSalesDetail();
+                      // Reload dashboard data to refresh cards and graphs
+                      loadStats();
+                      loadKpis();
+                      loadChart();
+                      if (isKimsBrothersDashboard) {
+                        loadKimsBrotherChart();
+                      }
+                      loadPopularMenuItems();
+                      loadDailySalesByProduct();
                     } catch (err) {
                       alert(err instanceof Error ? err.message : 'Failed to import');
                     } finally {
@@ -3805,22 +4886,22 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                                 {safeFormatSalesHour(row.hour)}
                               </td>
                               <td className="px-4 py-3 text-sm font-semibold text-slate-900">
-                                P{(row.total_sales ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ₱{Number(row.total_sales ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm text-slate-700">
-                                P{(row.refund ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ₱{Number(row.refund ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm text-slate-700">
-                                P{(row.discount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ₱{Number(row.discount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm font-semibold text-slate-900">
-                                P{(row.net_sales ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ₱{Number(row.net_sales ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm text-slate-700">
-                                P{(row.product_unit_price ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ₱{Number(row.product_unit_price ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm font-semibold text-slate-900">
-                                P{(row.gross_profit ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ₱{Number(row.gross_profit ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                             </tr>
                           ))}
@@ -3867,6 +4948,241 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     </div>
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Data Validation Modal */}
+      {validationModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="p-4 md:p-6 border-b border-slate-200 flex items-center justify-between bg-white">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Data Validation Report</h2>
+                <p className="text-xs text-slate-600 font-semibold mt-1">Check if imported data totals match across tables</p>
+              </div>
+              <button
+                onClick={() => {
+                  setValidationModalOpen(false);
+                  setValidationResult(null);
+                }}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-600" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {validationLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                </div>
+              ) : validationResult ? (
+                <div className="space-y-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className={`p-4 rounded-lg border-2 ${validationResult.validation.sales_match ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {validationResult.validation.sales_match ? (
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-red-600" />
+                        )}
+                        <h3 className="font-bold text-slate-900">Sales Totals</h3>
+                      </div>
+                      <p className={`text-sm ${validationResult.validation.sales_match ? 'text-green-700' : 'text-red-700'}`}>
+                        {validationResult.validation.sales_match ? '✓ All sales totals match' : '✗ Sales totals do not match'}
+                      </p>
+                    </div>
+                    <div className={`p-4 rounded-lg border-2 ${validationResult.validation.discounts_match ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {validationResult.validation.discounts_match ? (
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-red-600" />
+                        )}
+                        <h3 className="font-bold text-slate-900">Discount Totals</h3>
+                      </div>
+                      <p className={`text-sm ${validationResult.validation.discounts_match ? 'text-green-700' : 'text-red-700'}`}>
+                        {validationResult.validation.discounts_match ? '✓ All discount totals match' : '✗ Discount totals do not match'}
+                      </p>
+                    </div>
+                    <div className={`p-4 rounded-lg border-2 ${validationResult.validation.refunds_match ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {validationResult.validation.refunds_match ? (
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-red-600" />
+                        )}
+                        <h3 className="font-bold text-slate-900">Refund Totals</h3>
+                      </div>
+                      <p className={`text-sm ${validationResult.validation.refunds_match ? 'text-green-700' : 'text-red-700'}`}>
+                        {validationResult.validation.refunds_match ? '✓ All refund totals match' : '✗ Refund totals do not match'}
+                      </p>
+                    </div>
+                    <div className={`p-4 rounded-lg border-2 ${validationResult.validation.net_sales_match ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {validationResult.validation.net_sales_match ? (
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-red-600" />
+                        )}
+                        <h3 className="font-bold text-slate-900">Net Sales Totals</h3>
+                      </div>
+                      <p className={`text-sm ${validationResult.validation.net_sales_match ? 'text-green-700' : 'text-red-700'}`}>
+                        {validationResult.validation.net_sales_match ? '✓ All net sales totals match' : '✗ Net sales totals do not match'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Detailed Totals */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-bold text-slate-900">Detailed Totals by Table</h3>
+                    
+                    {/* Sales Hourly Summary */}
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                      <h4 className="font-bold text-slate-900 mb-3">Sales Hourly Summary</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <span className="text-slate-600">Total Sales:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.sales_hourly_summary.total_sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Total Refund:</span>
+                          <span className="ml-2 font-semibold">₱{(validationResult.sales_hourly_summary.total_refund || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Total Discount:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.sales_hourly_summary.total_discount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Net Sales:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.sales_hourly_summary.total_net_sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Gross Profit:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.sales_hourly_summary.total_gross_profit.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Records:</span>
+                          <span className="ml-2 font-semibold">{validationResult.sales_hourly_summary.record_count.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sales Category Report */}
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                      <h4 className="font-bold text-slate-900 mb-3">Sales by Category</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <span className="text-slate-600">Total Revenue:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.sales_category_report.total_revenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Total Refund:</span>
+                          <span className="ml-2 font-semibold">₱{(validationResult.sales_category_report.total_refund || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Net Sales:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.sales_category_report.total_net_sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Total Quantity:</span>
+                          <span className="ml-2 font-semibold">{validationResult.sales_category_report.total_quantity.toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Records:</span>
+                          <span className="ml-2 font-semibold">{validationResult.sales_category_report.record_count.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Product Sales Summary */}
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                      <h4 className="font-bold text-slate-900 mb-3">Sales by Product</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <span className="text-slate-600">Total Revenue:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.product_sales_summary.total_revenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Total Refund:</span>
+                          <span className="ml-2 font-semibold">₱{(validationResult.product_sales_summary.total_refund || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Net Sales:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.product_sales_summary.total_net_sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Total Discounts:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.product_sales_summary.total_discounts.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Total Quantity:</span>
+                          <span className="ml-2 font-semibold">{validationResult.product_sales_summary.total_quantity.toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Records:</span>
+                          <span className="ml-2 font-semibold">{validationResult.product_sales_summary.record_count.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Discount Report */}
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                      <h4 className="font-bold text-slate-900 mb-3">Discount Report</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <span className="text-slate-600">Total Discount:</span>
+                          <span className="ml-2 font-semibold">₱{validationResult.discount_report.total_discount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Records:</span>
+                          <span className="ml-2 font-semibold">{validationResult.discount_report.record_count.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Refund Report */}
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                      <h4 className="font-bold text-slate-900 mb-3">Refund Report</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <span className="text-slate-600">Total Refund:</span>
+                          <span className="ml-2 font-semibold">₱{(validationResult.refund_report?.total_refund || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Records:</span>
+                          <span className="ml-2 font-semibold">{(validationResult.refund_report?.record_count || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Warnings */}
+                    {validationResult.validation.warnings.length > 0 && (
+                      <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-lg">
+                        <h4 className="font-bold text-amber-900 mb-2 flex items-center gap-2">
+                          <AlertCircle className="w-5 h-5" />
+                          Warnings
+                        </h4>
+                        <ul className="list-disc list-inside space-y-1 text-sm text-amber-800">
+                          {validationResult.validation.warnings.map((warning, idx) => (
+                            <li key={idx}>{warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <AlertCircle className="w-12 h-12 mb-3 opacity-50" />
+                  <p className="text-sm font-semibold text-slate-500">No validation data available</p>
+                </div>
               )}
             </div>
           </div>
