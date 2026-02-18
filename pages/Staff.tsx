@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Search, 
@@ -37,6 +37,8 @@ import {
 } from '../services/employeeService';
 import { getBranchOptions } from '../services/branchService';
 import type { BranchOption } from '../types';
+import flatpickr from 'flatpickr';
+import 'flatpickr/dist/flatpickr.min.css';
 
 interface StaffPageProps {
   selectedBranchId: string;
@@ -74,6 +76,9 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
   const [employeeSubmitting, setEmployeeSubmitting] = useState(false);
   const [employeeFormError, setEmployeeFormError] = useState<string | null>(null);
   
+  const dateStartedPickerRef = useRef<HTMLInputElement>(null);
+  const dateStartedFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
+
   // Metadata for dropdowns
   const [metadata, setMetadata] = useState<{
     branches: Array<{ IDNo: number; BRANCH_NAME: string; BRANCH_CODE: string }>;
@@ -125,6 +130,36 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Flatpickr for Date Started (init when employee modal opens)
+  useEffect(() => {
+    if (!employeeModalMode || !dateStartedPickerRef.current) return;
+    if (dateStartedFlatpickrInstance.current) {
+      dateStartedFlatpickrInstance.current.destroy();
+    }
+    dateStartedFlatpickrInstance.current = flatpickr(dateStartedPickerRef.current, {
+      dateFormat: 'Y-m-d',
+      defaultDate: employeeForm.DATE_STARTED || null,
+      allowInput: false,
+      disableMobile: true,
+      onChange: (selectedDates) => {
+        if (selectedDates.length) {
+          setEmployeeForm(f => ({ ...f, DATE_STARTED: selectedDates[0].toISOString().slice(0, 10) }));
+        }
+      },
+    });
+    return () => {
+      if (dateStartedFlatpickrInstance.current) {
+        dateStartedFlatpickrInstance.current.destroy();
+      }
+    };
+  }, [employeeModalMode]);
+
+  useEffect(() => {
+    if (employeeModalMode && dateStartedFlatpickrInstance.current) {
+      dateStartedFlatpickrInstance.current.setDate(employeeForm.DATE_STARTED || '', false);
+    }
+  }, [employeeModalMode, employeeForm.DATE_STARTED]);
 
   const filteredStaff = staff.filter(person => {
     const matchesBranch = selectedBranchId === 'all' || person.branchId === selectedBranchId;
@@ -699,10 +734,11 @@ const StaffPage: React.FC<StaffPageProps> = ({ selectedBranchId }) => {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Date Started</label>
                   <input
-                    type="date"
-                    value={employeeForm.DATE_STARTED ?? ''}
-                    onChange={(e) => setEmployeeForm(f => ({ ...f, DATE_STARTED: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
+                    ref={dateStartedPickerRef}
+                    type="text"
+                    readOnly
+                    placeholder="Select date"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm cursor-pointer"
                   />
                 </div>
                 <div>

@@ -11,7 +11,7 @@ import {
   Tag, Receipt, CircleDollarSign,
   CheckCircle2, AlertCircle, Lightbulb,
   Coffee, UtensilsCrossed, ChefHat,
-  ShoppingBag, ExternalLink, X, Download, MoreVertical, User, ChevronDown, Check, Clock, Search, FileText, ChevronLeft, ChevronRight, Calendar
+  ShoppingBag, ExternalLink, X, Download, Upload, MoreVertical, User, ChevronDown, Check, Clock, Search, FileText, ChevronLeft, ChevronRight, Calendar
 } from 'lucide-react';
 import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
@@ -32,6 +32,12 @@ import {
   getDashboardKpis,
   getBestsellerByPeriod,
   getPaymentMethodsSummary,
+  getDiscountReport,
+  importDiscountReport,
+  getSalesHourlySummary,
+  importSalesHourlySummary,
+  getReceipts,
+  importReceipts,
   SAMPLE_POPULAR_MENU_ITEMS,
   SAMPLE_PAYMENT_METHOD_EXPORT,
   type PaymentMethodExportRow,
@@ -71,7 +77,12 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [bestsellersLoading, setBestsellersLoading] = useState(true);
   const [paymentMethodsSummary, setPaymentMethodsSummary] = useState<PaymentMethodExportRow[]>([]);
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(true);
-  const [paymentMethodsDate, setPaymentMethodsDate] = useState<string>(() => 
+  const [paymentMethodsDateStart, setPaymentMethodsDateStart] = useState<string>(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date.toISOString().slice(0, 10);
+  });
+  const [paymentMethodsDateEnd, setPaymentMethodsDateEnd] = useState<string>(() => 
     new Date().toISOString().slice(0, 10)
   );
 
@@ -100,6 +111,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [totalSalesDetailLoading, setTotalSalesDetailLoading] = useState<boolean>(false);
   const [totalSalesDetailPage, setTotalSalesDetailPage] = useState<number>(1);
   const [totalSalesDetailPageSize, setTotalSalesDetailPageSize] = useState<number>(10);
+  const [totalSalesDetailImportLoading, setTotalSalesDetailImportLoading] = useState<boolean>(false);
+  const totalSalesDetailImportInputRef = useRef<HTMLInputElement>(null);
   
   // Sales by Category Modal
   const [salesByCategoryModalOpen, setSalesByCategoryModalOpen] = useState<boolean>(false);
@@ -136,6 +149,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [discountPageSize, setDiscountPageSize] = useState<number>(10);
   const [discountEmployeeFilter, setDiscountEmployeeFilter] = useState<string>('all');
   const [discountEmployeeDropdownOpen, setDiscountEmployeeDropdownOpen] = useState<boolean>(false);
+  const [discountImportLoading, setDiscountImportLoading] = useState<boolean>(false);
+  const discountImportInputRef = useRef<HTMLInputElement>(null);
 
   // Receipt Storage Box Modal
   const [receiptModalOpen, setReceiptModalOpen] = useState<boolean>(false);
@@ -156,6 +171,18 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [receiptEmployeeFilter, setReceiptEmployeeFilter] = useState<string>('all');
   const [receiptEmployeeDropdownOpen, setReceiptEmployeeDropdownOpen] = useState<boolean>(false);
   const [receiptSearch, setReceiptSearch] = useState<string>('');
+  const [receiptImportLoading, setReceiptImportLoading] = useState<boolean>(false);
+  const receiptImportInputRef = useRef<HTMLInputElement>(null);
+
+  // Flatpickr refs for date pickers
+  const paymentMethodsDatePickerRef = useRef<HTMLInputElement>(null);
+  const paymentMethodsFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
+  const salesByCategoryDatePickerRef = useRef<HTMLInputElement>(null);
+  const salesByCategoryFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
+  const discountDatePickerRef = useRef<HTMLInputElement>(null);
+  const discountFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
+  const receiptDatePickerRef = useRef<HTMLInputElement>(null);
+  const receiptFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -257,6 +284,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       mode: 'range',
       dateFormat: 'Y-m-d',
       defaultDate: [kimsBrotherChartDateStart, kimsBrotherChartDateEnd],
+      disableMobile: true,
       onChange: (selectedDates) => {
         if (selectedDates.length === 2) {
           setKimsBrotherChartDateStart(selectedDates[0].toISOString().slice(0, 10));
@@ -271,6 +299,156 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       }
     };
   }, [isKimsBrothersDashboard, kimsBrotherChartDateStart, kimsBrotherChartDateEnd]);
+
+  // Payment methods date range - flatpickr (init when Kim's Brothers section is visible)
+  useEffect(() => {
+    if (!isKimsBrothersDashboard) return;
+    const el = paymentMethodsDatePickerRef.current;
+    if (!el) return;
+    if (paymentMethodsFlatpickrInstance.current) {
+      paymentMethodsFlatpickrInstance.current.destroy();
+      paymentMethodsFlatpickrInstance.current = null;
+    }
+    const init = () => {
+      if (!el.isConnected) return;
+      paymentMethodsFlatpickrInstance.current = flatpickr(el, {
+        mode: 'range',
+        dateFormat: 'Y-m-d',
+        defaultDate: [paymentMethodsDateStart, paymentMethodsDateEnd],
+        maxDate: 'today',
+        appendTo: document.body,
+        allowInput: false,
+        disableMobile: true,
+        onChange: (selectedDates) => {
+          if (selectedDates.length === 2) {
+            const [d1, d2] = selectedDates;
+            const start = d1 < d2 ? d1 : d2;
+            const end = d1 < d2 ? d2 : d1;
+            setPaymentMethodsDateStart(start.toISOString().slice(0, 10));
+            setPaymentMethodsDateEnd(end.toISOString().slice(0, 10));
+          }
+        },
+      });
+    };
+    requestAnimationFrame(init);
+    return () => {
+      if (paymentMethodsFlatpickrInstance.current) {
+        paymentMethodsFlatpickrInstance.current.destroy();
+        paymentMethodsFlatpickrInstance.current = null;
+      }
+    };
+  }, [isKimsBrothersDashboard]);
+
+  useEffect(() => {
+    if (isKimsBrothersDashboard && paymentMethodsFlatpickrInstance.current) {
+      paymentMethodsFlatpickrInstance.current.setDate([paymentMethodsDateStart, paymentMethodsDateEnd], false);
+    }
+  }, [isKimsBrothersDashboard, paymentMethodsDateStart, paymentMethodsDateEnd]);
+
+  // Sales by Category date range - flatpickr (init when modal opens)
+  useEffect(() => {
+    if (!salesByCategoryModalOpen || !salesByCategoryDatePickerRef.current) return;
+    if (salesByCategoryFlatpickrInstance.current) {
+      salesByCategoryFlatpickrInstance.current.destroy();
+    }
+    salesByCategoryFlatpickrInstance.current = flatpickr(salesByCategoryDatePickerRef.current, {
+      mode: 'range',
+      dateFormat: 'Y-m-d',
+      defaultDate: [salesByCategoryDateStart, salesByCategoryDateEnd],
+      maxDate: 'today',
+      disableMobile: true,
+      onChange: (selectedDates) => {
+        if (selectedDates.length === 2) {
+          const [d1, d2] = selectedDates;
+          const start = d1 < d2 ? d1 : d2;
+          const end = d1 < d2 ? d2 : d1;
+          setSalesByCategoryDateStart(start.toISOString().slice(0, 10));
+          setSalesByCategoryDateEnd(end.toISOString().slice(0, 10));
+        }
+      },
+    });
+    return () => {
+      if (salesByCategoryFlatpickrInstance.current) {
+        salesByCategoryFlatpickrInstance.current.destroy();
+      }
+    };
+  }, [salesByCategoryModalOpen]);
+
+  useEffect(() => {
+    if (salesByCategoryModalOpen && salesByCategoryFlatpickrInstance.current) {
+      salesByCategoryFlatpickrInstance.current.setDate([salesByCategoryDateStart, salesByCategoryDateEnd], false);
+    }
+  }, [salesByCategoryModalOpen, salesByCategoryDateStart, salesByCategoryDateEnd]);
+
+  // Discount date range - flatpickr (init when modal opens)
+  useEffect(() => {
+    if (!discountModalOpen || !discountDatePickerRef.current) return;
+    if (discountFlatpickrInstance.current) {
+      discountFlatpickrInstance.current.destroy();
+    }
+    discountFlatpickrInstance.current = flatpickr(discountDatePickerRef.current, {
+      mode: 'range',
+      dateFormat: 'Y-m-d',
+      defaultDate: [discountDateStart, discountDateEnd],
+      maxDate: 'today',
+      disableMobile: true,
+      onChange: (selectedDates) => {
+        if (selectedDates.length === 2) {
+          const [d1, d2] = selectedDates;
+          const start = d1 < d2 ? d1 : d2;
+          const end = d1 < d2 ? d2 : d1;
+          setDiscountDateStart(start.toISOString().slice(0, 10));
+          setDiscountDateEnd(end.toISOString().slice(0, 10));
+        }
+      },
+    });
+    return () => {
+      if (discountFlatpickrInstance.current) {
+        discountFlatpickrInstance.current.destroy();
+      }
+    };
+  }, [discountModalOpen]);
+
+  useEffect(() => {
+    if (discountModalOpen && discountFlatpickrInstance.current) {
+      discountFlatpickrInstance.current.setDate([discountDateStart, discountDateEnd], false);
+    }
+  }, [discountModalOpen, discountDateStart, discountDateEnd]);
+
+  // Receipt date range - flatpickr (init when modal opens)
+  useEffect(() => {
+    if (!receiptModalOpen || !receiptDatePickerRef.current) return;
+    if (receiptFlatpickrInstance.current) {
+      receiptFlatpickrInstance.current.destroy();
+    }
+    receiptFlatpickrInstance.current = flatpickr(receiptDatePickerRef.current, {
+      mode: 'range',
+      dateFormat: 'Y-m-d',
+      defaultDate: [receiptDateStart, receiptDateEnd],
+      maxDate: 'today',
+      disableMobile: true,
+      onChange: (selectedDates) => {
+        if (selectedDates.length === 2) {
+          const [d1, d2] = selectedDates;
+          const start = d1 < d2 ? d1 : d2;
+          const end = d1 < d2 ? d2 : d1;
+          setReceiptDateStart(start.toISOString().slice(0, 10));
+          setReceiptDateEnd(end.toISOString().slice(0, 10));
+        }
+      },
+    });
+    return () => {
+      if (receiptFlatpickrInstance.current) {
+        receiptFlatpickrInstance.current.destroy();
+      }
+    };
+  }, [receiptModalOpen]);
+
+  useEffect(() => {
+    if (receiptModalOpen && receiptFlatpickrInstance.current) {
+      receiptFlatpickrInstance.current.setDate([receiptDateStart, receiptDateEnd], false);
+    }
+  }, [receiptModalOpen, receiptDateStart, receiptDateEnd]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -423,14 +601,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setPaymentMethodsLoading(true);
     setPaymentMethodsSummary([]);
     try {
-      const data = await withMinimumDelay(getPaymentMethodsSummary(selectedBranchId, paymentMethodsDate, paymentMethodsDate), 1000);
+      const data = await withMinimumDelay(getPaymentMethodsSummary(selectedBranchId, paymentMethodsDateStart, paymentMethodsDateEnd), 1000);
       setPaymentMethodsSummary(data);
     } catch {
       setPaymentMethodsSummary(SAMPLE_PAYMENT_METHOD_EXPORT);
     } finally {
       setPaymentMethodsLoading(false);
     }
-  }, [selectedBranchId, paymentMethodsDate]);
+  }, [selectedBranchId, paymentMethodsDateStart, paymentMethodsDateEnd]);
 
   useEffect(() => {
     if (isKimsBrothersDashboard) {
@@ -442,8 +620,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setSalesByCategoryLoading(true);
     setSalesByCategoryData([]);
     try {
-      // TODO: Create backend API endpoint for sales by category
-      const mockData = [
+      // TODO: Create backend API endpoint for sales by category - dates passed for when API is ready
+      const baseData = [
         { category: 'A-ADDITIONAL', quantity: 595, net_sales: 227944, unit_cost: 0, total_revenue: 227944 },
         { category: 'B-BEEF', quantity: 1470, net_sales: 504870, unit_cost: 0, total_revenue: 504870 },
         { category: 'Basic meat set', quantity: 0, net_sales: 0, unit_cost: 0, total_revenue: 0 },
@@ -459,6 +637,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         { category: 'Service', quantity: 1328, net_sales: 0, unit_cost: 0, total_revenue: 0 },
         { category: 'SET Meat', quantity: 792, net_sales: 1702760, unit_cost: 0, total_revenue: 1702760 },
       ];
+      const start = new Date(salesByCategoryDateStart);
+      const end = new Date(salesByCategoryDateEnd);
+      const daysInRange = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      const scaleFactor = daysInRange / 30;
+      const mockData = baseData.map(row => ({
+        ...row,
+        quantity: Math.round(row.quantity * scaleFactor),
+        net_sales: Math.round(row.net_sales * scaleFactor),
+        total_revenue: Math.round(row.total_revenue * scaleFactor),
+      }));
       
       const result = await withMinimumDelay(Promise.resolve(mockData), 500);
       setSalesByCategoryData(result);
@@ -507,13 +695,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setDiscountLoading(true);
     setDiscountData([]);
     try {
-      // TODO: Create backend API endpoint for discount report
-      const mockData = [
-        { name: 'P.W.D 20%', discount_applied: 39, point_discount_amount: 5064.00 },
-        { name: 'Senior Discount 20%', discount_applied: 42, point_discount_amount: 7790.80 },
-      ];
-      
-      const result = await withMinimumDelay(Promise.resolve(mockData), 500);
+      const result = await withMinimumDelay(
+        getDiscountReport(selectedBranchId, discountDateStart, discountDateEnd),
+        300
+      );
       setDiscountData(result);
     } catch (err) {
       setDiscountData([]);
@@ -534,45 +719,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setTotalSalesDetailLoading(true);
     setTotalSalesDetailData([]);
     try {
-      // TODO: Create backend API endpoint for hourly sales detail
-      const mockData = [];
-      const startDate = new Date(kimsBrotherChartDateStart);
-      const endDate = new Date(kimsBrotherChartDateEnd);
-      
-      let currentDate = new Date(startDate);
-      while (currentDate <= endDate) {
-        for (let hour = 0; hour < 24; hour++) {
-          const dateTime = new Date(currentDate);
-          dateTime.setHours(hour, 0, 0, 0);
-          
-          const totalSales = Math.floor(Math.random() * 50000) + 5000;
-          const refund = Math.random() > 0.9 ? Math.floor(Math.random() * 1000) : 0;
-          const discount = Math.random() > 0.8 ? Math.floor(Math.random() * 500) : 0;
-          const netSales = totalSales - refund - discount;
-          
-          mockData.push({
-            hour: dateTime.toISOString(),
-            total_sales: totalSales,
-            refund: refund,
-            discount: discount,
-            net_sales: netSales,
-            product_unit_price: 0,
-            gross_profit: netSales
-          });
-        }
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-      
-      mockData.sort((a, b) => new Date(b.hour).getTime() - new Date(a.hour).getTime());
-      
-      const result = await withMinimumDelay(Promise.resolve(mockData), 500);
+      const result = await withMinimumDelay(
+        getSalesHourlySummary(selectedBranchId, kimsBrotherChartDateStart, kimsBrotherChartDateEnd),
+        300
+      );
       setTotalSalesDetailData(result);
     } catch (err) {
       setTotalSalesDetailData([]);
     } finally {
       setTotalSalesDetailLoading(false);
     }
-  }, [kimsBrotherChartDateStart, kimsBrotherChartDateEnd]);
+  }, [selectedBranchId, kimsBrotherChartDateStart, kimsBrotherChartDateEnd]);
 
   useEffect(() => {
     if (totalSalesDetailModalOpen) {
@@ -585,23 +742,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setReceiptLoading(true);
     setReceiptData([]);
     try {
-      // TODO: Create backend API endpoint for receipt storage box
-      const mockData = [
-        { receipt_number: '1-36838', date: '2026-02-17', time: '15:12', employee: 'Operator', customer: '', type: 'sale', total: 3540.00 },
-        { receipt_number: '1-36837', date: '2026-02-17', time: '15:02', employee: 'Operator', customer: '', type: 'sale', total: 1530.00 },
-        { receipt_number: '1-36836', date: '2026-02-17', time: '15:01', employee: 'Operator', customer: '', type: 'sale', total: 4060.00 },
-        { receipt_number: '1-36835', date: '2026-02-17', time: '14:20', employee: 'Operator', customer: '', type: 'sale', total: 9880.00 },
-        { receipt_number: '1-36834', date: '2026-02-17', time: '13:56', employee: 'Operator', customer: '', type: 'sale', total: 8308.00 },
-        { receipt_number: '1-36833', date: '2026-02-17', time: '13:38', employee: 'Operator', customer: '', type: 'sale', total: 6580.00 },
-        { receipt_number: '1-36832', date: '2026-02-17', time: '12:45', employee: 'Operator', customer: '', type: 'sale', total: 4984.00 },
-        { receipt_number: '1-36831', date: '2026-02-17', time: '12:39', employee: 'Operator', customer: '', type: 'sale', total: 500.00 },
-        { receipt_number: '1-36830', date: '2026-02-17', time: '11:39', employee: 'Operator', customer: '', type: 'sale', total: 500.00 },
-        { receipt_number: '1-36829', date: '2026-02-17', time: '11:20', employee: 'Operator', customer: '', type: 'refund', total: 1500.00 },
-        { receipt_number: '1-36828', date: '2026-02-17', time: '10:45', employee: 'Operator', customer: '', type: 'sale', total: 3200.00 },
-        { receipt_number: '1-36827', date: '2026-02-17', time: '10:30', employee: 'Operator', customer: '', type: 'refund', total: 800.00 },
-      ];
-      
-      const result = await withMinimumDelay(Promise.resolve(mockData), 500);
+      const result = await withMinimumDelay(
+        getReceipts(selectedBranchId, receiptDateStart, receiptDateEnd, receiptSearch, receiptEmployeeFilter),
+        300
+      );
       setReceiptData(result);
     } catch (err) {
       setReceiptData([]);
@@ -743,6 +887,20 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
 
   const formatPeso = (amount: number) =>
     `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const safeFormatSalesHour = (hourVal: string | Date | null | undefined): string => {
+    if (hourVal == null || hourVal === '') return '—';
+    const d = new Date(hourVal);
+    if (isNaN(d.getTime())) return '—';
+    return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
+  const safeSalesHourToISO = (hourVal: string | Date | null | undefined): string => {
+    if (hourVal == null || hourVal === '') return '';
+    const d = new Date(hourVal);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString();
+  };
 
   return (
     <div className="space-y-8">
@@ -2048,28 +2206,39 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               <label htmlFor="payment-methods-date" className="text-xs font-semibold text-slate-600 whitespace-nowrap">
-                Date:
+                Date Range:
               </label>
               <input
+                ref={paymentMethodsDatePickerRef}
                 id="payment-methods-date"
-                type="date"
-                value={paymentMethodsDate}
-                onChange={(e) => {
-                  setPaymentMethodsDate(e.target.value);
-                }}
-                max={new Date().toISOString().slice(0, 10)}
-                className="px-3 py-1.5 text-sm border-2 border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-900 font-medium transition-all"
+                type="text"
+                readOnly
+                value={`${paymentMethodsDateStart} - ${paymentMethodsDateEnd}`}
+                placeholder="Select date range"
+                className="px-3 py-1.5 text-sm border-2 border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-900 font-medium transition-all cursor-pointer min-w-[220px]"
               />
-              {paymentMethodsDate !== new Date().toISOString().slice(0, 10) && (
-                <button
-                  onClick={() => {
-                    setPaymentMethodsDate(new Date().toISOString().slice(0, 10));
-                  }}
-                  className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-sm hover:shadow-md"
-                >
-                  Today
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  const today = new Date();
+                  const thirtyDaysAgo = new Date();
+                  thirtyDaysAgo.setDate(today.getDate() - 30);
+                  setPaymentMethodsDateStart(thirtyDaysAgo.toISOString().slice(0, 10));
+                  setPaymentMethodsDateEnd(today.toISOString().slice(0, 10));
+                }}
+                className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-sm hover:shadow-md"
+              >
+                Last 30 Days
+              </button>
+              <button
+                onClick={() => {
+                  const today = new Date().toISOString().slice(0, 10);
+                  setPaymentMethodsDateStart(today);
+                  setPaymentMethodsDateEnd(today);
+                }}
+                className="px-3 py-1.5 text-xs font-semibold bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-all shadow-sm"
+              >
+                Today
+              </button>
             </div>
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 rounded-xl blur-md opacity-40" />
@@ -2253,28 +2422,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               {/* Filters Section - Simple Design */}
               <div className="p-4 md:p-6 border-b border-slate-200 bg-white">
                 <div className="flex items-center gap-4 flex-wrap">
-                  {/* Start Date */}
+                  {/* Date Range */}
                   <div className="flex items-center gap-2">
-                    <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">Start Date:</label>
+                    <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">Date Range:</label>
                     <input
-                      type="date"
-                      value={salesByCategoryDateStart}
-                      onChange={(e) => setSalesByCategoryDateStart(e.target.value)}
-                      max={new Date().toISOString().slice(0, 10)}
-                      className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-slate-900 font-medium"
-                    />
-                  </div>
-                  
-                  {/* End Date */}
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">End Date:</label>
-                    <input
-                      type="date"
-                      value={salesByCategoryDateEnd}
-                      onChange={(e) => setSalesByCategoryDateEnd(e.target.value)}
-                      max={new Date().toISOString().slice(0, 10)}
-                      min={salesByCategoryDateStart}
-                      className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-slate-900 font-medium"
+                      ref={salesByCategoryDatePickerRef}
+                      type="text"
+                      readOnly
+                      value={`${salesByCategoryDateStart} - ${salesByCategoryDateEnd}`}
+                      placeholder="Select date range"
+                      className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-slate-900 font-medium cursor-pointer min-w-[220px]"
                     />
                   </div>
                   
@@ -2518,6 +2675,65 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   <span>EXPORT</span>
                 </button>
 
+                {/* IMPORT Button */}
+                <input
+                  ref={discountImportInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setDiscountImportLoading(true);
+                    try {
+                      const text = await file.text();
+                      const lines = text.split(/\r?\n/).filter(Boolean);
+                      if (lines.length < 2) {
+                        alert('CSV must have header row plus at least one data row. Format: Name, Discount applied, Point discount amount');
+                        return;
+                      }
+                      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                      const nameIdx = Math.max(0, headers.findIndex(h => h === 'name'));
+                      const appliedIdx = headers.findIndex(h => h.includes('discount') && h.includes('applied'));
+                      const amountIdx = headers.findIndex(h => h.includes('point'));
+                      const fallbackApplied = appliedIdx >= 0 ? appliedIdx : 1;
+                      const fallbackAmount = amountIdx >= 0 ? amountIdx : 2;
+                      const rows: { name: string; discount_applied: number; point_discount_amount: number }[] = [];
+                      for (let i = 1; i < lines.length; i++) {
+                        const cells = lines[i].split(',').map(c => c.trim());
+                        const name = cells[nameIdx] ?? '';
+                        const discountApplied = parseFloat(cells[fallbackApplied] ?? '0') || 0;
+                        const pointDiscountAmount = parseFloat(cells[fallbackAmount] ?? '0') || 0;
+                        if (name) rows.push({ name, discount_applied: discountApplied, point_discount_amount: pointDiscountAmount });
+                      }
+                      if (rows.length === 0) {
+                        alert('No valid rows to import. Ensure column order: Name, Discount applied, Point discount amount');
+                        return;
+                      }
+                      const result = await importDiscountReport(rows);
+                      alert(`Successfully imported ${result.inserted} record(s).`);
+                      loadDiscountReport();
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Failed to import');
+                    } finally {
+                      setDiscountImportLoading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => discountImportInputRef.current?.click()}
+                  disabled={discountImportLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-bold rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {discountImportLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  <span>IMPORT</span>
+                </button>
+
                 {/* Title */}
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl shadow-lg">
@@ -2550,24 +2766,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               <div className="flex items-center gap-4 mb-6 flex-wrap">
                 {/* Date Range */}
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-semibold text-slate-700 whitespace-nowrap">Start Date:</label>
+                  <label className="text-xs font-semibold text-slate-700 whitespace-nowrap">Date Range:</label>
                   <input
-                    type="date"
-                    value={discountDateStart}
-                    onChange={(e) => setDiscountDateStart(e.target.value)}
-                    max={discountDateEnd}
-                    className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-slate-900 font-medium"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-semibold text-slate-700 whitespace-nowrap">End Date:</label>
-                  <input
-                    type="date"
-                    value={discountDateEnd}
-                    onChange={(e) => setDiscountDateEnd(e.target.value)}
-                    max={new Date().toISOString().slice(0, 10)}
-                    min={discountDateStart}
-                    className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-slate-900 font-medium"
+                    ref={discountDatePickerRef}
+                    type="text"
+                    readOnly
+                    value={`${discountDateStart} - ${discountDateEnd}`}
+                    placeholder="Select date range"
+                    className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-slate-900 font-medium cursor-pointer min-w-[220px]"
                   />
                 </div>
 
@@ -2802,6 +3008,174 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   </button>
                 </div>
 
+                {/* IMPORT Button */}
+                <input
+                  ref={receiptImportInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setReceiptImportLoading(true);
+                    try {
+                      let text = await file.text();
+                      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+                      const lines = text.split(/\r?\n/).filter(Boolean);
+                      if (lines.length < 2) {
+                        alert('CSV must have header row plus at least one data row. Columns: receipt_number, receipt_date/date, employee_name, customer_name, transaction_type, total_amount');
+                        return;
+                      }
+                      const byComma = lines[0].split(',');
+                      const bySemi = lines[0].split(';');
+                      const byTab = lines[0].split('\t');
+                      const delim = byTab.length > bySemi.length && byTab.length > byComma.length ? '\t' : bySemi.length > byComma.length ? ';' : ',';
+                      const splitCsvRow = (line: string, d: string): string[] => {
+                        if (d !== ',') return line.split(d).map(c => c.trim().replace(/^["']|["']$/g, ''));
+                        const out: string[] = [];
+                        let cur = '';
+                        let inQuotes = false;
+                        for (let i = 0; i < line.length; i++) {
+                          const c = line[i];
+                          if (c === '"') inQuotes = !inQuotes;
+                          else if (c === d && !inQuotes) {
+                            out.push(cur.trim().replace(/^["']|["']$/g, ''));
+                            cur = '';
+                          } else cur += c;
+                        }
+                        out.push(cur.trim().replace(/^["']|["']$/g, ''));
+                        return out;
+                      };
+                      const parseNum = (val: string) => parseFloat((val ?? '0').toString().replace(/^P\s*/i, '').replace(/,/g, '')) || 0;
+                      const headers = splitCsvRow(lines[0], delim).map(h => h.trim().toLowerCase().replace(/^["']|["']$/g, ''));
+                      const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+                      const col = (candidates: string[], fallback: number) => {
+                        for (const c of candidates) {
+                          const nc = norm(c);
+                          const idx = headers.findIndex(h => norm(h) === nc || norm(h).includes(nc) || nc.includes(norm(h)));
+                          if (idx >= 0) return idx;
+                        }
+                        return fallback;
+                      };
+                      const receiptNumIdx = col(['receipt_number', 'receipt number', 'receipt_no', 'receipt no', 'receipt#', 'receipt id', '영수증 번호', '영수증_번호'], 0);
+                      const dateIdx = col(['receipt_date', 'receipt date', 'date', '날짜'], 1);
+                      const timeIdx = col(['time'], 2);
+                      const employeeIdx = col(['employee_name', 'employee name', 'employee', '계산원 이름', '계산원_이름'], 2);
+                      const customerIdx = col(['customer_name', 'customer name', 'customer', '고객 이름', '고객_이름'], 3);
+                      const typeIdx = col(['transaction_type', 'transaction type', 'type', '영수증 종류', '영수증_종류'], 4);
+                      const totalIdx = col(['total_amount', 'total amount', 'total', '총 매출', '총_매출', '총 가격', '총_가격'], 5);
+                      const parseDt = (d: string, t?: string): string | null => {
+                        let v = (d ?? '').trim();
+                        let tVal = (t ?? '').trim();
+                        const koTime = v.match(/(오전|오후)\s*(\d{1,2}):(\d{2})/);
+                        if (koTime) {
+                          const isPm = koTime[1] === '오후';
+                          let hour = parseInt(koTime[2], 10);
+                          if (isPm && hour < 12) hour += 12;
+                          else if (!isPm && hour === 12) hour = 0;
+                          tVal = `${hour.toString().padStart(2, '0')}:${koTime[3]}:00`;
+                          v = v.replace(/\s*(오전|오후)\s*\d{1,2}:\d{2}.*$/, '').trim();
+                        }
+                        if (!v) return null;
+                        if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
+                          return tVal ? `${v} ${tVal.length === 5 ? tVal + ':00' : tVal}` : `${v} 00:00:00`;
+                        }
+                        const dotMatch = v.match(/^(\d{2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?/);
+                        if (dotMatch) {
+                          const yy = parseInt(dotMatch[1], 10);
+                          const m = parseInt(dotMatch[2], 10);
+                          const dVal = parseInt(dotMatch[3], 10);
+                          const year = yy < 100 ? (yy >= 50 ? 1900 + yy : 2000 + yy) : yy;
+                          let hour = 0, min = 0, sec = 0;
+                          if (tVal) {
+                            const tm = tVal.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+                            if (tm) { hour = parseInt(tm[1], 10); min = parseInt(tm[2], 10); sec = tm[3] ? parseInt(tm[3], 10) : 0; }
+                          }
+                          const date = new Date(year, m - 1, dVal, hour, min, sec);
+                          if (isNaN(date.getTime())) return null;
+                          return date.toISOString().replace('T', ' ').slice(0, 19);
+                        }
+                        const dObj = new Date(v);
+                        return isNaN(dObj.getTime()) ? null : dObj.toISOString().replace('T', ' ').slice(0, 19);
+                      };
+                      const findDateInCells = (cells: string[]): string | null => {
+                        for (let c = 0; c < cells.length; c++) {
+                          const v = (cells[c] ?? '').trim();
+                          if (!v) continue;
+                          const dt = parseDt(v);
+                          if (dt) return dt;
+                          if (c + 1 < cells.length) {
+                            const dt2 = parseDt(v, (cells[c + 1] ?? '').trim());
+                            if (dt2) return dt2;
+                          }
+                        }
+                        return null;
+                      };
+                      const looksLikeDate = (v: string) => /^\d{2}\.\s*\d{1,2}\.\s*\d{1,2}/.test(v) || /\d{4}-\d{2}-\d{2}/.test(v) || /오전|오후|AM|PM/i.test(v);
+                      const toTransactionType = (v: string): number => /^(refund|2|환불)$/.test((v ?? '').trim()) ? 2 : 1;
+                      const rows: Array<{ receipt_number: string; receipt_date: string; employee_name: string; customer_name: string; transaction_type: number; total_amount: number }> = [];
+                      for (let i = 1; i < lines.length; i++) {
+                        const cells = splitCsvRow(lines[i], delim);
+                        let receiptNum = (cells[receiptNumIdx] ?? cells[0] ?? '').trim();
+                        if (looksLikeDate(receiptNum)) {
+                          receiptNum = (cells[1] ?? cells[2] ?? '').trim();
+                        }
+                        if (!receiptNum || looksLikeDate(receiptNum)) continue;
+                        let dateVal = cells[dateIdx] ?? cells[1] ?? cells[0];
+                        if (looksLikeDate(cells[0]) && !looksLikeDate(dateVal)) dateVal = cells[0];
+                        const timeVal = timeIdx >= 0 && timeIdx < cells.length ? cells[timeIdx] : '';
+                        let receiptDate = parseDt(dateVal, timeVal);
+                        if (!receiptDate) receiptDate = findDateInCells(cells);
+                        if (!receiptDate) {
+                          const today = new Date().toISOString().slice(0, 10) + ' 00:00:00';
+                          receiptDate = today;
+                        }
+                        const employeeName = (cells[employeeIdx] ?? '').trim();
+                        const customerName = (cells[customerIdx] ?? '').trim();
+                        const transType = toTransactionType(cells[typeIdx] ?? cells[4] ?? '');
+                        const totalAmount = parseNum(cells[totalIdx] ?? cells[5] ?? '0');
+                        rows.push({
+                          receipt_number: receiptNum,
+                          receipt_date: receiptDate,
+                          employee_name: employeeName,
+                          customer_name: customerName,
+                          transaction_type: transType,
+                          total_amount: totalAmount
+                        });
+                      }
+                      if (rows.length === 0) {
+                        const firstCells = lines[1]?.split(delim).map(c => c.trim()) ?? [];
+                        const firstReceipt = (firstCells[receiptNumIdx] ?? firstCells[0] ?? '').trim();
+                        const firstDate = (firstCells[dateIdx] ?? firstCells[1] ?? '').trim();
+                        const preview = firstCells.length > 0 ? `First row cells: [${firstCells.slice(0, 6).join(' | ')}]` : 'First row empty';
+                        alert(`No valid rows to import. ${preview} | receipt#: "${firstReceipt || '(empty)'}", date: "${firstDate || '(empty)'}". Headers: ${headers.slice(0, 6).join(', ')}. Delimiter: ${delim === ';' ? 'semicolon' : delim === '\t' ? 'tab' : 'comma'}.`);
+                        return;
+                      }
+                      const result = await importReceipts(rows);
+                      const msg = result.skipped ? `Imported ${result.inserted} receipt(s). Skipped ${result.skipped} duplicate(s).` : `Successfully imported ${result.inserted} receipt(s).`;
+                      alert(msg);
+                      loadReceiptStorageBox();
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Failed to import');
+                    } finally {
+                      setReceiptImportLoading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => receiptImportInputRef.current?.click()}
+                  disabled={receiptImportLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-bold rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {receiptImportLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  <span>IMPORT</span>
+                </button>
+
                 {/* Title */}
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl shadow-lg">
@@ -2829,21 +3203,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               <div className="flex items-center gap-4 mb-6 flex-wrap">
                 {/* Date Range */}
                 <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-slate-700 whitespace-nowrap">Date Range:</label>
                   <input
-                    type="date"
-                    value={receiptDateStart}
-                    onChange={(e) => setReceiptDateStart(e.target.value)}
-                    max={receiptDateEnd}
-                    className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-900 font-medium"
-                  />
-                  <span className="text-sm font-semibold text-slate-600">-</span>
-                  <input
-                    type="date"
-                    value={receiptDateEnd}
-                    onChange={(e) => setReceiptDateEnd(e.target.value)}
-                    max={new Date().toISOString().slice(0, 10)}
-                    min={receiptDateStart}
-                    className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-900 font-medium"
+                    ref={receiptDatePickerRef}
+                    type="text"
+                    readOnly
+                    value={`${receiptDateStart} - ${receiptDateEnd}`}
+                    placeholder="Select date range"
+                    className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-900 font-medium cursor-pointer min-w-[220px]"
                   />
                 </div>
 
@@ -2972,7 +3339,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                           <ArrowDownRight className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Refund amount</p>
+                          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Refund</p>
                           <p className="text-2xl font-black text-slate-900">{refunds}</p>
                         </div>
                       </div>
@@ -3051,9 +3418,12 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                               <td className="px-4 py-3 text-sm">
                                 <div>
                                   <div className="font-semibold text-slate-900">
-                                    {new Date(row.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    {row.date ? (() => {
+                                      const d = new Date(row.date);
+                                      return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                                    })() : '—'}
                                   </div>
-                                  <div className="text-xs text-slate-500">{row.time}</div>
+                                  <div className="text-xs text-slate-500">{row.time || '—'}</div>
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-sm font-semibold text-slate-700">{row.employee || '—'}</td>
@@ -3135,15 +3505,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   onClick={() => {
                     const csvContent = [
                       ['hour', 'Total sales', 'refund', 'discount', 'Net sales', 'Product unit price', 'Gross profit'],
-                      ...totalSalesDetailData.map(row => [
-                        new Date(row.hour).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-                        `P${row.total_sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        `P${row.refund.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        `P${row.discount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        `P${row.net_sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        `P${row.product_unit_price.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        `P${row.gross_profit.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      ])
+                      ...totalSalesDetailData
+                        .filter(row => safeSalesHourToISO(row.hour))
+                        .map(row => [
+                          safeSalesHourToISO(row.hour),
+                          row.total_sales ?? 0,
+                          row.refund ?? 0,
+                          row.discount ?? 0,
+                          row.net_sales ?? 0,
+                          row.product_unit_price ?? 0,
+                          row.gross_profit ?? 0
+                        ])
                     ].map(row => row.join(',')).join('\n');
                     
                     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -3161,6 +3533,127 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   <Download className="w-4 h-4" />
                   <span>EXPORT</span>
                 </button>
+
+                {/* IMPORT Button */}
+                <input
+                  ref={totalSalesDetailImportInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setTotalSalesDetailImportLoading(true);
+                    try {
+                      let text = await file.text();
+                      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+                      const lines = text.split(/\r?\n/).filter(Boolean);
+                      if (lines.length < 2) {
+                        alert('CSV must have header row plus at least one data row. Columns: hour/sale_datetime, total_sales, refund, discount, net_sales, product_unit_price, gross_profit');
+                        return;
+                      }
+                      const byComma = lines[0].split(',');
+                      const bySemi = lines[0].split(';');
+                      const byTab = lines[0].split('\t');
+                      const delim = byTab.length > bySemi.length && byTab.length > byComma.length ? '\t'
+                        : bySemi.length > byComma.length ? ';' : ',';
+                      const parseNum = (val: string) => parseFloat((val ?? '0').toString().replace(/^P\s*/i, '').replace(/,/g, '')) || 0;
+                      const headers = lines[0].split(delim).map(h => h.trim().toLowerCase().replace(/^["']|["']$/g, ''));
+                      const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+                      const col = (candidates: string[], fallback: number) => {
+                        for (const c of candidates) {
+                          const nc = norm(c);
+                          const idx = headers.findIndex(h => norm(h) === nc || norm(h).includes(nc) || nc.includes(norm(h)));
+                          if (idx >= 0) return idx;
+                        }
+                        return fallback;
+                      };
+                      const hourIdx = col(['hour', 'sale_datetime', 'date', 'datetime', 'sale date'], 0);
+                      const totalSalesIdx = col(['total_sales', 'total sales'], 1);
+                      const refundIdx = col(['refund'], 2);
+                      const discountIdx = col(['discount'], 3);
+                      const netSalesIdx = col(['net_sales', 'net sales'], 4);
+                      const productUnitPriceIdx = col(['product_unit_price', 'product unit price'], 5);
+                      const grossProfitIdx = col(['gross_profit', 'gross profit'], 6);
+                      const parseDatetime = (val: string): string | null => {
+                        const v = (val ?? '').trim();
+                        if (!v) return null;
+                        if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
+                          return v.includes(' ') ? v : `${v} 00:00:00`;
+                        }
+                        if (/^\d+$/.test(v)) {
+                          const ts = parseInt(v, 10);
+                          const d = ts > 1e12 ? new Date(ts) : new Date(ts * 1000);
+                          return isNaN(d.getTime()) ? null : d.toISOString();
+                        }
+                        const dotMatch = v.match(/^(\d{2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?(\s+(\d{1,2}):(\d{2})(:(\d{2}))?)?$/);
+                        if (dotMatch) {
+                          const yy = parseInt(dotMatch[1], 10);
+                          const m = parseInt(dotMatch[2], 10);
+                          const d = parseInt(dotMatch[3], 10);
+                          const year = yy < 100 ? (yy >= 50 ? 1900 + yy : 2000 + yy) : yy;
+                          const month = m - 1;
+                          const hour = dotMatch[5] ? parseInt(dotMatch[5], 10) : 0;
+                          const min = dotMatch[6] ? parseInt(dotMatch[6], 10) : 0;
+                          const sec = dotMatch[8] ? parseInt(dotMatch[8], 10) : 0;
+                          const date = new Date(year, month, d, hour, min, sec);
+                          return isNaN(date.getTime()) ? null : date.toISOString();
+                        }
+                        const d = new Date(v);
+                        return isNaN(d.getTime()) ? null : d.toISOString();
+                      };
+                      const rows: { sale_datetime: string; total_sales: number; refund: number; discount: number; net_sales: number; product_unit_price: number; gross_profit: number }[] = [];
+                      for (let i = 1; i < lines.length; i++) {
+                        const cells = lines[i].split(delim).map(c => c.trim().replace(/^["']|["']$/g, ''));
+                        const hourVal = (cells[hourIdx] ?? cells[0] ?? '').trim();
+                        const saleDatetime = parseDatetime(hourVal);
+                        if (!saleDatetime) continue;
+                        const totalSales = (totalSalesIdx >= 0 && totalSalesIdx < cells.length ? parseNum(cells[totalSalesIdx]) : parseNum(cells[1])) || 0;
+                        const refund = (refundIdx >= 0 && refundIdx < cells.length ? parseNum(cells[refundIdx]) : parseNum(cells[2])) || 0;
+                        const discount = (discountIdx >= 0 && discountIdx < cells.length ? parseNum(cells[discountIdx]) : parseNum(cells[3])) || 0;
+                        const netSales = (netSalesIdx >= 0 && netSalesIdx < cells.length ? parseNum(cells[netSalesIdx]) : parseNum(cells[4])) || totalSales - refund - discount;
+                        const productUnitPrice = (productUnitPriceIdx >= 0 && productUnitPriceIdx < cells.length ? parseNum(cells[productUnitPriceIdx]) : parseNum(cells[5])) || 0;
+                        const grossProfit = (grossProfitIdx >= 0 && grossProfitIdx < cells.length ? parseNum(cells[grossProfitIdx]) : parseNum(cells[6])) || netSales || totalSales - refund - discount;
+                        rows.push({
+                          sale_datetime: saleDatetime,
+                          total_sales: totalSales,
+                          refund,
+                          discount,
+                          net_sales: netSales || totalSales - refund - discount,
+                          product_unit_price: productUnitPrice,
+                          gross_profit: grossProfit || netSales || totalSales - refund - discount
+                        });
+                      }
+                      if (rows.length === 0) {
+                        const firstRow = lines[1]?.split(delim) ?? [];
+                        const firstDatetime = (firstRow[hourIdx] ?? firstRow[0] ?? '').trim();
+                        alert(`No valid rows to import. First row datetime value: "${firstDatetime || '(empty)'}". Accepts: YYYY-MM-DD, YYYY-MM-DD HH:mm:ss, or ISO format. Columns: hour/sale_datetime, total_sales, refund, discount, net_sales, product_unit_price, gross_profit. Delimiter: ${delim === ';' ? 'semicolon' : 'comma'}.`);
+                        return;
+                      }
+                      const result = await importSalesHourlySummary(rows, selectedBranchId !== 'all' ? selectedBranchId : null);
+                      alert(`Successfully imported ${result.inserted} record(s).`);
+                      loadTotalSalesDetail();
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Failed to import');
+                    } finally {
+                      setTotalSalesDetailImportLoading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => totalSalesDetailImportInputRef.current?.click()}
+                  disabled={totalSalesDetailImportLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-bold rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {totalSalesDetailImportLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  <span>IMPORT</span>
+                </button>
+
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl shadow-lg">
                     <FileText className="w-5 h-5 text-white" />
@@ -3195,6 +3688,12 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
                 </div>
+              ) : totalSalesDetailData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <FileText className="w-12 h-12 mb-3 opacity-50" />
+                  <p className="text-sm font-semibold text-slate-500">No hourly sales data available</p>
+                  <p className="text-xs text-slate-400 mt-1">Data will appear here once sales are recorded in sales_hourly_summary</p>
+                </div>
               ) : (
                 <>
                   {/* Table */}
@@ -3217,25 +3716,25 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                           .map((row, idx) => (
                             <tr key={idx} className="group/row transition-all duration-200 hover:bg-slate-50 text-slate-700">
                               <td className="px-4 py-3 text-sm font-semibold text-slate-900">
-                                {new Date(row.hour).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, {new Date(row.hour).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                {safeFormatSalesHour(row.hour)}
                               </td>
                               <td className="px-4 py-3 text-sm font-semibold text-slate-900">
-                                P{row.total_sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                P{(row.total_sales ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm text-slate-700">
-                                P{row.refund.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                P{(row.refund ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm text-slate-700">
-                                P{row.discount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                P{(row.discount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm font-semibold text-slate-900">
-                                P{row.net_sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                P{(row.net_sales ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm text-slate-700">
-                                P{row.product_unit_price.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                P{(row.product_unit_price ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-4 py-3 text-sm font-semibold text-slate-900">
-                                P{row.gross_profit.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                P{(row.gross_profit ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                             </tr>
                           ))}

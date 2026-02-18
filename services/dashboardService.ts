@@ -301,6 +301,275 @@ export const SAMPLE_POPULAR_MENU_ITEMS: PopularMenuItem[] = [
   { IDNo: 5, MENU_NAME: 'Chamisul', MENU_PRICE: 0, total_quantity: 0, order_count: 0, total_revenue: 319928 },
 ];
 
+// --- Sales hourly summary (Total Sales Detail modal) ---
+
+export type SalesHourlySummaryRow = {
+  hour: string;
+  total_sales: number;
+  refund: number;
+  discount: number;
+  net_sales: number;
+  product_unit_price: number;
+  gross_profit: number;
+};
+
+type SalesHourlySummaryResponse = {
+  start_date: string | null;
+  end_date: string | null;
+  branch_id: string | null;
+  data: SalesHourlySummaryRow[];
+};
+
+/**
+ * Fetch sales hourly summary from backend (sales_hourly_summary table).
+ * @param branchId - 'all' or specific branch ID
+ * @param startDate - Start date (YYYY-MM-DD)
+ * @param endDate - End date (YYYY-MM-DD)
+ */
+export async function getSalesHourlySummary(
+  branchId: string | null,
+  startDate: string | null,
+  endDate: string | null
+): Promise<SalesHourlySummaryRow[]> {
+  const params: Record<string, string> = {};
+  if (branchId && branchId !== 'all') {
+    params.branch_id = branchId;
+  }
+  if (startDate) {
+    params.start_date = startDate;
+  }
+  if (endDate) {
+    params.end_date = endDate;
+  }
+
+  const response = await fetch(buildUrl('/reports/sales-hourly-summary', params), {
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+  const json = (await response.json()) as ApiResponse<SalesHourlySummaryResponse>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to load sales hourly summary');
+  }
+  return json.data?.data ?? [];
+}
+
+/**
+ * Import sales hourly summary into sales_hourly_summary table.
+ * @param rows - Array of { sale_datetime, total_sales, refund, discount, net_sales, product_unit_price, gross_profit }
+ * @param branchId - Optional branch ID
+ */
+export async function importSalesHourlySummary(
+  rows: { sale_datetime?: string; hour?: string; total_sales?: number; refund?: number; discount?: number; net_sales?: number; product_unit_price?: number; gross_profit?: number }[],
+  branchId?: string | null
+): Promise<{ inserted: number }> {
+  const response = await fetch(buildUrl('/reports/sales-hourly-summary/import'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      ...authHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ data: rows, branch_id: branchId || null }),
+  });
+  const json = (await response.json()) as ApiResponse<{ inserted: number }>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to import sales hourly summary');
+  }
+  return json.data ?? { inserted: 0 };
+}
+
+// --- Receipts (Receipt Storage Box modal) ---
+
+export type ReceiptRow = {
+  receipt_number: string;
+  date: string;
+  time: string;
+  employee: string;
+  customer: string;
+  type: string;
+  total: number;
+};
+
+type ReceiptsResponse = {
+  start_date: string | null;
+  end_date: string | null;
+  branch_id: string | null;
+  data: Array<{
+    receipt_number: string;
+    receipt_date: string;
+    employee_name: string;
+    customer_name: string;
+    transaction_type: number | string; // 1 = sales, 2 = refund
+    total_amount: number;
+  }>;
+};
+
+/**
+ * Fetch receipts from backend (receipts table).
+ * @param branchId - 'all' or specific branch ID
+ * @param startDate - Start date (YYYY-MM-DD)
+ * @param endDate - End date (YYYY-MM-DD)
+ * @param search - Optional search term
+ * @param employeeFilter - Optional employee filter ('all' or specific name)
+ */
+export async function getReceipts(
+  branchId: string | null,
+  startDate: string | null,
+  endDate: string | null,
+  search?: string | null,
+  employeeFilter?: string | null
+): Promise<ReceiptRow[]> {
+  const params: Record<string, string> = {};
+  if (branchId && branchId !== 'all') {
+    params.branch_id = branchId;
+  }
+  if (startDate) {
+    params.start_date = startDate;
+  }
+  if (endDate) {
+    params.end_date = endDate;
+  }
+  if (search?.trim()) {
+    params.search = search.trim();
+  }
+  if (employeeFilter && employeeFilter !== 'all') {
+    params.employee_filter = employeeFilter;
+  }
+
+  const response = await fetch(buildUrl('/reports/receipts', params), {
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+  const json = (await response.json()) as ApiResponse<ReceiptsResponse>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to load receipts');
+  }
+  const raw = json.data?.data ?? [];
+  return raw.map((r) => {
+    const dt = r.receipt_date ? new Date(r.receipt_date) : null;
+    const dateStr = dt && !isNaN(dt.getTime()) ? dt.toISOString().slice(0, 10) : '';
+    const timeStr = dt && !isNaN(dt.getTime()) ? dt.toTimeString().slice(0, 5) : '';
+    const txType = r.transaction_type;
+    const type = txType === 1 || txType === '1' ? 'sale' : txType === 2 || txType === '2' ? 'refund' : (String(txType ?? '')).toLowerCase();
+    return {
+      receipt_number: r.receipt_number ?? '',
+      date: dateStr,
+      time: timeStr,
+      employee: r.employee_name ?? '',
+      customer: r.customer_name ?? '',
+      type,
+      total: Number(r.total_amount) || 0,
+    };
+  });
+}
+
+/**
+ * Import receipts into receipts table.
+ * @param rows - Array of { receipt_number, receipt_date, employee_name, customer_name, transaction_type, total_amount }
+ */
+export async function importReceipts(
+  rows: Array<{
+    receipt_number?: string;
+    receipt_date?: string;
+    employee_name?: string;
+    employee?: string;
+    customer_name?: string;
+    customer?: string;
+    transaction_type?: number | string; // 1 = sales, 2 = refund
+    type?: string;
+    total_amount?: number;
+    total?: number;
+    date?: string;
+    time?: string;
+  }>
+): Promise<{ inserted: number; skipped?: number }> {
+  const response = await fetch(buildUrl('/reports/receipts/import'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      ...authHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ data: rows }),
+  });
+  const json = (await response.json()) as ApiResponse<{ inserted: number }>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to import receipts');
+  }
+  return json.data ?? { inserted: 0 };
+}
+
+// --- Discount report (discount_report table) ---
+
+export type DiscountReportRow = {
+  name: string;
+  discount_applied: number;
+  point_discount_amount: number;
+};
+
+type DiscountReportResponse = {
+  start_date: string | null;
+  end_date: string | null;
+  branch_id: string | null;
+  data: DiscountReportRow[];
+};
+
+/**
+ * Fetch discount report from backend (discount_report table).
+ * @param branchId - 'all' or specific branch ID
+ * @param startDate - Optional start date (YYYY-MM-DD)
+ * @param endDate - Optional end date (YYYY-MM-DD)
+ */
+export async function getDiscountReport(
+  branchId: string | null,
+  startDate?: string | null,
+  endDate?: string | null
+): Promise<DiscountReportRow[]> {
+  const params: Record<string, string> = {};
+  if (branchId && branchId !== 'all') {
+    params.branch_id = branchId;
+  }
+  if (startDate) {
+    params.start_date = startDate;
+  }
+  if (endDate) {
+    params.end_date = endDate;
+  }
+
+  const response = await fetch(buildUrl('/reports/discount', params), {
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+  const json = (await response.json()) as ApiResponse<DiscountReportResponse>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to load discount report');
+  }
+  return json.data?.data ?? [];
+}
+
+/**
+ * Import discount data into discount_report table.
+ * @param rows - Array of { name, discount_applied, point_discount_amount }
+ */
+export async function importDiscountReport(
+  rows: DiscountReportRow[]
+): Promise<{ inserted: number }> {
+  const response = await fetch(buildUrl('/reports/discount/import'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      ...authHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ data: rows }),
+  });
+  const json = (await response.json()) as ApiResponse<{ inserted: number }>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || 'Failed to import discount report');
+  }
+  return json.data ?? { inserted: 0 };
+}
+
 // --- Payment method export summary (EXPORT table) ---
 
 export type PaymentMethodExportRow = {
