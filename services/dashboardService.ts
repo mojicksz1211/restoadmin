@@ -993,17 +993,27 @@ type PopularMenuResponse = {
 export async function getPopularMenuItems(
   branchId: string | null,
   days: number = 7,
-  limit: number = 5
+  limit: number = 5,
+  startDate?: string | null,
+  endDate?: string | null
 ): Promise<PopularMenuResponse> {
-  const end = new Date();
-  const start = new Date();
-  if (days > 0) {
-    start.setDate(start.getDate() - (days - 1));
+  let start_date: string;
+  let end_date: string;
+  
+  if (startDate && endDate) {
+    start_date = startDate;
+    end_date = endDate;
   } else {
-    start.setTime(end.getTime());
+    const end = new Date();
+    const start = new Date();
+    if (days > 0) {
+      start.setDate(start.getDate() - (days - 1));
+    } else {
+      start.setTime(end.getTime());
+    }
+    start_date = start.toISOString().slice(0, 10);
+    end_date = end.toISOString().slice(0, 10);
   }
-  const start_date = start.toISOString().slice(0, 10);
-  const end_date = end.toISOString().slice(0, 10);
 
   const params: Record<string, string> = {
     start_date,

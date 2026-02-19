@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, Cell
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area
 } from 'recharts';
 import { 
   DollarSign, Store, Sparkles, Loader2, 
@@ -60,6 +60,27 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const { t } = useTranslation('common');
+  
+  // Helper function to format date as YYYY-MM-DD in local timezone
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Global Date Range for entire dashboard (default: start of current month to today)
+  const [globalDateStart, setGlobalDateStart] = useState<string>(() => {
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    return formatDateLocal(startOfMonth);
+  });
+  const [globalDateEnd, setGlobalDateEnd] = useState<string>(() => 
+    formatDateLocal(new Date())
+  );
+  const globalDatePickerRef = useRef<HTMLInputElement>(null);
+  const globalDatePickerInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
+  
   const [aiReport, setAiReport] = useState<AIAnalysisResult | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -96,32 +117,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [isDaraejungBranch, setIsDaraejungBranch] = useState<boolean>(false);
   
   // KimsBrother Total Sales Chart Controls
-  const [kimsBrotherChartDateStart, setKimsBrotherChartDateStart] = useState<string>(() => {
-    // Default to January 1, 2026
-    return '2026-01-01';
-  });
-  const [kimsBrotherChartDateEnd, setKimsBrotherChartDateEnd] = useState<string>(() => {
-    // Default to February 18, 2026
-    return '2026-02-18';
-  });
   const [kimsBrotherChartType, setKimsBrotherChartType] = useState<'bar' | 'line'>('line');
   const [kimsBrotherChartPeriod, setKimsBrotherChartPeriod] = useState<'glance' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'>('glance');
   const [kimsBrotherChartTypeDropdownOpen, setKimsBrotherChartTypeDropdownOpen] = useState<boolean>(false);
   const [kimsBrotherChartPeriodDropdownOpen, setKimsBrotherChartPeriodDropdownOpen] = useState<boolean>(false);
-  
-  // Product Sales Chart Date Range
-  const [productSalesDateStart, setProductSalesDateStart] = useState<string>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return date.toISOString().slice(0, 10);
-  });
-  const [productSalesDateEnd, setProductSalesDateEnd] = useState<string>(() => 
-    new Date().toISOString().slice(0, 10)
-  );
-  const productSalesDatePickerRef = useRef<HTMLInputElement>(null);
-  const productSalesFlatpickrInstance = useRef<flatpickr.Instance | null>(null);
-  const kimsBrotherDatePickerRef = useRef<HTMLInputElement>(null);
-  const kimsBrotherFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
   
   // Total Sales Detail Modal
   const [totalSalesDetailModalOpen, setTotalSalesDetailModalOpen] = useState<boolean>(false);
@@ -139,14 +138,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   
   // Sales by Product Modal
   const [salesByProductModalOpen, setSalesByProductModalOpen] = useState<boolean>(false);
-  const [salesByProductDateStart, setSalesByProductDateStart] = useState<string>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return date.toISOString().slice(0, 10);
-  });
-  const [salesByProductDateEnd, setSalesByProductDateEnd] = useState<string>(() => 
-    new Date().toISOString().slice(0, 10)
-  );
   const [salesByProductPage, setSalesByProductPage] = useState<number>(1);
   const [salesByProductPageSize, setSalesByProductPageSize] = useState<number>(10);
   const [salesByProductEmployeeFilter, setSalesByProductEmployeeFilter] = useState<string>('all');
@@ -160,14 +151,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [goodsSalesLoading, setGoodsSalesLoading] = useState<boolean>(false);
   const [goodsSalesImportLoading, setGoodsSalesImportLoading] = useState<boolean>(false);
   const goodsSalesImportInputRef = useRef<HTMLInputElement>(null);
-  const [salesByCategoryDateStart, setSalesByCategoryDateStart] = useState<string>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return date.toISOString().slice(0, 10);
-  });
-  const [salesByCategoryDateEnd, setSalesByCategoryDateEnd] = useState<string>(() => 
-    new Date().toISOString().slice(0, 10)
-  );
   const [salesByCategoryPage, setSalesByCategoryPage] = useState<number>(1);
   const [salesByCategoryPageSize, setSalesByCategoryPageSize] = useState<number>(10);
   const [salesByCategoryEmployeeFilter, setSalesByCategoryEmployeeFilter] = useState<string>('all');
@@ -221,12 +204,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   // Flatpickr refs for date pickers
   const paymentMethodsDatePickerRef = useRef<HTMLInputElement>(null);
   const paymentMethodsFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
-  const salesByCategoryDatePickerRef = useRef<HTMLInputElement>(null);
-  const salesByCategoryFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
-  const salesByProductDatePickerRef = useRef<HTMLInputElement>(null);
-  const salesByProductFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
-  const salesByProductWidgetDatePickerRef = useRef<HTMLInputElement>(null);
-  const salesByProductWidgetFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
   const discountDatePickerRef = useRef<HTMLInputElement>(null);
   const discountFlatpickrInstance = useRef<ReturnType<typeof flatpickr> | null>(null);
   const receiptDatePickerRef = useRef<HTMLInputElement>(null);
@@ -261,15 +238,23 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setChartError(null);
     setChartData([]);
     try {
-      const res = await withMinimumDelay(getRevenueReport(selectedBranchId, 7, 'daily'), 1000);
-      setChartData(revenueReportToChartData(res.data, 'daily'));
+      const startDate = new Date(globalDateStart);
+      const endDate = new Date(globalDateEnd);
+      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      
+      const res = await withMinimumDelay(
+        getRevenueReport(selectedBranchId, diffDays, 'daily', globalDateStart, globalDateEnd), 
+        1000
+      );
+      setChartData(revenueReportToChartData(res.data, 'daily', globalDateStart, globalDateEnd));
     } catch (err) {
       setChartError(err instanceof Error ? err.message : 'Failed to load revenue chart');
       setChartData([]);
     } finally {
       setChartLoading(false);
     }
-  }, [selectedBranchId]);
+  }, [selectedBranchId, globalDateStart, globalDateEnd]);
 
   const loadKimsBrotherChart = useCallback(async () => {
     if (!isKimsBrothersDashboard) return;
@@ -278,8 +263,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setChartError(null);
     setChartData([]);
     try {
-      const startDate = new Date(kimsBrotherChartDateStart);
-      const endDate = new Date(kimsBrotherChartDateEnd);
+      const startDate = new Date(globalDateStart);
+      const endDate = new Date(globalDateEnd);
       const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       
@@ -292,132 +277,93 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       }
       
       const res = await withMinimumDelay(
-        getRevenueReport(selectedBranchId, diffDays, period, kimsBrotherChartDateStart, kimsBrotherChartDateEnd), 
+        getRevenueReport(selectedBranchId, diffDays, period, globalDateStart, globalDateEnd), 
         1000
       );
-      setChartData(revenueReportToChartData(res.data, period, kimsBrotherChartDateStart, kimsBrotherChartDateEnd));
+      setChartData(revenueReportToChartData(res.data, period, globalDateStart, globalDateEnd));
     } catch (err) {
       setChartError(err instanceof Error ? err.message : 'Failed to load revenue chart');
       setChartData([]);
     } finally {
       setChartLoading(false);
     }
-  }, [selectedBranchId, isKimsBrothersDashboard, kimsBrotherChartDateStart, kimsBrotherChartDateEnd, kimsBrotherChartPeriod]);
+  }, [selectedBranchId, isKimsBrothersDashboard, globalDateStart, globalDateEnd, kimsBrotherChartPeriod]);
 
   const formatDateForDisplay = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
-  const getFormattedDateRange = (): string => {
-    const start = formatDateForDisplay(kimsBrotherChartDateStart);
-    const end = formatDateForDisplay(kimsBrotherChartDateEnd);
-    return `${start} - ${end}`;
-  };
 
-  const navigateDateRange = (direction: 'prev' | 'next') => {
-    const startDate = new Date(kimsBrotherChartDateStart);
-    const endDate = new Date(kimsBrotherChartDateEnd);
-    const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    
-    if (kimsBrotherChartPeriod === 'monthly' || kimsBrotherChartPeriod === 'quarterly' || kimsBrotherChartPeriod === 'yearly') {
-      // For monthly/quarterly/yearly, navigate by months
-      const monthsToMove = kimsBrotherChartPeriod === 'quarterly' ? 3 : kimsBrotherChartPeriod === 'yearly' ? 12 : 1;
-      
-      if (direction === 'prev') {
-        startDate.setMonth(startDate.getMonth() - monthsToMove);
-        endDate.setMonth(endDate.getMonth() - monthsToMove);
-      } else {
-        startDate.setMonth(startDate.getMonth() + monthsToMove);
-        endDate.setMonth(endDate.getMonth() + monthsToMove);
-      }
-    } else {
-      // For daily/weekly/glance, navigate by days
-      if (direction === 'prev') {
-        startDate.setDate(startDate.getDate() - diffDays);
-        endDate.setDate(endDate.getDate() - diffDays);
-      } else {
-        startDate.setDate(startDate.getDate() + diffDays);
-        endDate.setDate(endDate.getDate() + diffDays);
-      }
-    }
-    
-    setKimsBrotherChartDateStart(startDate.toISOString().slice(0, 10));
-    setKimsBrotherChartDateEnd(endDate.toISOString().slice(0, 10));
-  };
-
-  // Initialize flatpickr instance (only once)
+  // Global Date Picker initialization - re-initialize when element becomes available
   useEffect(() => {
-    if (!isKimsBrothersDashboard || !kimsBrotherDatePickerRef.current) return;
+    // Wait for DOM to be ready, especially if element is conditionally rendered
+    const timer = setTimeout(() => {
+      const el = globalDatePickerRef.current;
+      if (!el) return;
 
-    if (kimsBrotherFlatpickrInstance.current) {
-      kimsBrotherFlatpickrInstance.current.destroy();
-    }
+      // If already initialized, don't re-initialize
+      if (globalDatePickerInstance.current) {
+        return;
+      }
 
-    kimsBrotherFlatpickrInstance.current = flatpickr(kimsBrotherDatePickerRef.current, {
-      mode: 'range',
-      dateFormat: 'Y-m-d',
-      defaultDate: [kimsBrotherChartDateStart, kimsBrotherChartDateEnd],
-      disableMobile: true,
-      onChange: (selectedDates) => {
-        if (selectedDates.length === 2) {
-          const start = selectedDates[0].toISOString().slice(0, 10);
-          const end = selectedDates[1].toISOString().slice(0, 10);
-          setKimsBrotherChartDateStart(start);
-          setKimsBrotherChartDateEnd(end);
-        }
-      },
-    });
+      // Parse date strings to Date objects for flatpickr
+      const startDate = new Date(globalDateStart + 'T00:00:00');
+      const endDate = new Date(globalDateEnd + 'T00:00:00');
+      
+      globalDatePickerInstance.current = flatpickr(el, {
+        mode: 'range',
+        dateFormat: 'Y-m-d',
+        defaultDate: [startDate, endDate],
+        maxDate: 'today',
+        disableMobile: true,
+        onChange: (selectedDates) => {
+          if (selectedDates.length === 2) {
+            const [d1, d2] = selectedDates;
+            const start = d1 < d2 ? d1 : d2;
+            const end = d1 < d2 ? d2 : d1;
+            setGlobalDateStart(formatDateLocal(start));
+            setGlobalDateEnd(formatDateLocal(end));
+          }
+        },
+      });
+    }, 200);
 
     return () => {
-      if (kimsBrotherFlatpickrInstance.current) {
-        kimsBrotherFlatpickrInstance.current.destroy();
-      }
+      clearTimeout(timer);
     };
-  }, [isKimsBrothersDashboard]);
+  }, [isKimsBrothersDashboard]); // Re-initialize when dashboard type changes
 
-  // Update flatpickr dates when state changes (from navigation buttons, etc.)
+  // Cleanup on unmount
   useEffect(() => {
-    if (kimsBrotherFlatpickrInstance.current && isKimsBrothersDashboard) {
-      // Only update if dates are different to avoid infinite loop
-      const currentDates = kimsBrotherFlatpickrInstance.current.selectedDates;
-      const currentStart = currentDates.length > 0 ? currentDates[0].toISOString().slice(0, 10) : null;
-      const currentEnd = currentDates.length > 1 ? currentDates[1].toISOString().slice(0, 10) : null;
-      
-      if (currentStart !== kimsBrotherChartDateStart || currentEnd !== kimsBrotherChartDateEnd) {
-        kimsBrotherFlatpickrInstance.current.setDate([kimsBrotherChartDateStart, kimsBrotherChartDateEnd], false);
-      }
-    }
-  }, [kimsBrotherChartDateStart, kimsBrotherChartDateEnd, isKimsBrothersDashboard]);
-
-  // Product Sales Chart date range - flatpickr
-  useEffect(() => {
-    const el = productSalesDatePickerRef.current;
-    if (!el) return;
-    if (productSalesFlatpickrInstance.current) {
-      productSalesFlatpickrInstance.current.destroy();
-      productSalesFlatpickrInstance.current = null;
-    }
-
-    productSalesFlatpickrInstance.current = flatpickr(el, {
-      mode: 'range',
-      dateFormat: 'Y-m-d',
-      defaultDate: [productSalesDateStart, productSalesDateEnd],
-      disableMobile: true,
-      onChange: (selectedDates) => {
-        if (selectedDates.length === 2) {
-          setProductSalesDateStart(selectedDates[0].toISOString().slice(0, 10));
-          setProductSalesDateEnd(selectedDates[1].toISOString().slice(0, 10));
-        }
-      },
-    });
-
     return () => {
-      if (productSalesFlatpickrInstance.current) {
-        productSalesFlatpickrInstance.current.destroy();
+      if (globalDatePickerInstance.current) {
+        globalDatePickerInstance.current.destroy();
+        globalDatePickerInstance.current = null;
       }
     };
-  }, [productSalesDateStart, productSalesDateEnd]);
+  }, []);
+
+  // Update global date picker when dates change externally
+  useEffect(() => {
+    if (globalDatePickerInstance.current) {
+      try {
+        const currentDates = globalDatePickerInstance.current.selectedDates;
+        const currentStart = currentDates.length > 0 ? formatDateLocal(currentDates[0]) : null;
+        const currentEnd = currentDates.length > 1 ? formatDateLocal(currentDates[1]) : null;
+        
+        if (currentStart !== globalDateStart || currentEnd !== globalDateEnd) {
+          // Parse the date strings back to Date objects for flatpickr
+          const startDate = new Date(globalDateStart + 'T00:00:00');
+          const endDate = new Date(globalDateEnd + 'T00:00:00');
+          globalDatePickerInstance.current.setDate([startDate, endDate], false);
+        }
+      } catch (error) {
+        console.error('Error updating global date picker:', error);
+      }
+    }
+  }, [globalDateStart, globalDateEnd]);
+
 
   // Payment methods date range - flatpickr (init when Kim's Brothers section is visible)
   useEffect(() => {
@@ -464,139 +410,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     }
   }, [isKimsBrothersDashboard, paymentMethodsDateStart, paymentMethodsDateEnd]);
 
-  // Sales by Category date range - flatpickr (init when modal opens)
-  useEffect(() => {
-    if (!salesByCategoryModalOpen || !salesByCategoryDatePickerRef.current) return;
-    if (salesByCategoryFlatpickrInstance.current) {
-      salesByCategoryFlatpickrInstance.current.destroy();
-    }
-    salesByCategoryFlatpickrInstance.current = flatpickr(salesByCategoryDatePickerRef.current, {
-      mode: 'range',
-      dateFormat: 'Y-m-d',
-      defaultDate: [salesByCategoryDateStart, salesByCategoryDateEnd],
-      maxDate: 'today',
-      disableMobile: true,
-      onChange: (selectedDates) => {
-        if (selectedDates.length === 2) {
-          const [d1, d2] = selectedDates;
-          const start = d1 < d2 ? d1 : d2;
-          const end = d1 < d2 ? d2 : d1;
-          setSalesByCategoryDateStart(start.toISOString().slice(0, 10));
-          setSalesByCategoryDateEnd(end.toISOString().slice(0, 10));
-        }
-      },
-    });
-    return () => {
-      if (salesByCategoryFlatpickrInstance.current) {
-        salesByCategoryFlatpickrInstance.current.destroy();
-      }
-    };
-  }, [salesByCategoryModalOpen]);
 
-  useEffect(() => {
-    if (salesByCategoryModalOpen && salesByCategoryFlatpickrInstance.current) {
-      salesByCategoryFlatpickrInstance.current.setDate([salesByCategoryDateStart, salesByCategoryDateEnd], false);
-    }
-  }, [salesByCategoryModalOpen, salesByCategoryDateStart, salesByCategoryDateEnd]);
-
-  // Sales by Product date range - flatpickr (init when modal opens)
-  useEffect(() => {
-    if (!salesByProductModalOpen || !salesByProductDatePickerRef.current) return;
-    if (salesByProductFlatpickrInstance.current) {
-      salesByProductFlatpickrInstance.current.destroy();
-    }
-    salesByProductFlatpickrInstance.current = flatpickr(salesByProductDatePickerRef.current, {
-      mode: 'range',
-      dateFormat: 'Y-m-d',
-      defaultDate: [salesByProductDateStart, salesByProductDateEnd],
-      maxDate: 'today',
-      disableMobile: true,
-      onChange: (selectedDates) => {
-        if (selectedDates.length === 2) {
-          const [d1, d2] = selectedDates;
-          const start = d1 < d2 ? d1 : d2;
-          const end = d1 < d2 ? d2 : d1;
-          setSalesByProductDateStart(start.toISOString().slice(0, 10));
-          setSalesByProductDateEnd(end.toISOString().slice(0, 10));
-        }
-      },
-    });
-    return () => {
-      if (salesByProductFlatpickrInstance.current) {
-        salesByProductFlatpickrInstance.current.destroy();
-      }
-    };
-  }, [salesByProductModalOpen]);
-
-  useEffect(() => {
-    if (salesByProductModalOpen && salesByProductFlatpickrInstance.current) {
-      salesByProductFlatpickrInstance.current.setDate([salesByProductDateStart, salesByProductDateEnd], false);
-    }
-  }, [salesByProductModalOpen, salesByProductDateStart, salesByProductDateEnd]);
-
-  // Sales by Product widget date range - flatpickr (for dashboard widget)
-  useEffect(() => {
-    const el = salesByProductWidgetDatePickerRef.current;
-    if (!el) return;
-    
-    // Only initialize once
-    if (salesByProductWidgetFlatpickrInstance.current) {
-      return;
-    }
-
-    // Small delay to ensure element is ready
-    const timeoutId = setTimeout(() => {
-      if (!salesByProductWidgetDatePickerRef.current) return;
-      
-      // Initialize flatpickr
-      salesByProductWidgetFlatpickrInstance.current = flatpickr(salesByProductWidgetDatePickerRef.current, {
-        mode: 'range',
-        dateFormat: 'Y-m-d',
-        defaultDate: [salesByProductDateStart, salesByProductDateEnd],
-        maxDate: 'today',
-        disableMobile: true,
-        onChange: (selectedDates) => {
-          if (selectedDates.length === 2) {
-            const [d1, d2] = selectedDates;
-            const start = d1 < d2 ? d1 : d2;
-            const end = d1 < d2 ? d2 : d1;
-            const startStr = start.toISOString().slice(0, 10);
-            const endStr = end.toISOString().slice(0, 10);
-            
-            // Update state - this will trigger data reload
-            setSalesByProductDateStart(startStr);
-            setSalesByProductDateEnd(endStr);
-          }
-        },
-      });
-    }, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (salesByProductWidgetFlatpickrInstance.current) {
-        salesByProductWidgetFlatpickrInstance.current.destroy();
-        salesByProductWidgetFlatpickrInstance.current = null;
-      }
-    };
-  }, []); // Only initialize once
-
-  // Update date picker when dates change externally (e.g., from "Last 30 Days" button)
-  useEffect(() => {
-    if (salesByProductWidgetFlatpickrInstance.current) {
-      try {
-        const currentDates = salesByProductWidgetFlatpickrInstance.current.selectedDates;
-        const currentStart = currentDates.length > 0 ? currentDates[0].toISOString().slice(0, 10) : null;
-        const currentEnd = currentDates.length > 1 ? currentDates[1].toISOString().slice(0, 10) : null;
-        
-        // Only update if dates actually changed
-        if (currentStart !== salesByProductDateStart || currentEnd !== salesByProductDateEnd) {
-          salesByProductWidgetFlatpickrInstance.current.setDate([salesByProductDateStart, salesByProductDateEnd], false);
-        }
-      } catch (error) {
-        console.error('Error updating date picker:', error);
-      }
-    }
-  }, [salesByProductDateStart, salesByProductDateEnd]);
 
   // Discount date range - flatpickr (init when modal opens)
   useEffect(() => {
@@ -695,7 +509,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     } else {
       loadChart();
     }
-  }, [loadChart, loadKimsBrotherChart, isKimsBrothersDashboard]);
+  }, [loadChart, loadKimsBrotherChart, isKimsBrothersDashboard, globalDateStart, globalDateEnd]);
 
   const loadKpis = useCallback(async () => {
     setKpisLoading(true);
@@ -743,29 +557,32 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setPopularMenuItemsLoading(true);
     setPopularMenuItems([]);
     try {
-      // Calculate days from product sales date range to keep them in sync
-      const startDate = new Date(productSalesDateStart);
-      const endDate = new Date(productSalesDateEnd);
+      // Use global date range
+      const startDate = new Date(globalDateStart);
+      const endDate = new Date(globalDateEnd);
       const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      const res = await withMinimumDelay(getPopularMenuItems(selectedBranchId, daysDiff, 5), 1000);
+      const res = await withMinimumDelay(
+        getPopularMenuItems(selectedBranchId, daysDiff, 5, globalDateStart, globalDateEnd), 
+        1000
+      );
       setPopularMenuItems(res.data);
     } catch {
       setPopularMenuItems([]);
     } finally {
       setPopularMenuItemsLoading(false);
     }
-  }, [selectedBranchId, productSalesDateStart, productSalesDateEnd]);
+  }, [selectedBranchId, globalDateStart, globalDateEnd]);
 
   const loadDailySalesByProduct = useCallback(async () => {
     setDailySalesLoading(true);
     setDailySalesByProduct([]);
     try {
-      // Calculate days from date range
-      const startDate = new Date(productSalesDateStart);
-      const endDate = new Date(productSalesDateEnd);
+      // Use global date range
+      const startDate = new Date(globalDateStart);
+      const endDate = new Date(globalDateEnd);
       const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       const data = await withMinimumDelay(
-        getDailySalesByProduct(selectedBranchId, daysDiff, 5, productSalesDateStart, productSalesDateEnd), 
+        getDailySalesByProduct(selectedBranchId, daysDiff, 5, globalDateStart, globalDateEnd), 
         1000
       );
       setDailySalesByProduct(data);
@@ -774,18 +591,18 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     } finally {
       setDailySalesLoading(false);
     }
-  }, [selectedBranchId, productSalesDateStart, productSalesDateEnd]);
+  }, [selectedBranchId, globalDateStart, globalDateEnd]);
 
-  // Load daily sales by product for Sales by Product widget (uses salesByProductDateStart/End)
+  // Load daily sales by product for Sales by Product widget (uses global date range)
   const loadDailySalesByProductForWidget = useCallback(async () => {
     setDailySalesForWidgetLoading(true);
     try {
-      const startDate = new Date(salesByProductDateStart);
-      const endDate = new Date(salesByProductDateEnd);
+      const startDate = new Date(globalDateStart);
+      const endDate = new Date(globalDateEnd);
       const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       
       const data = await withMinimumDelay(
-        getDailySalesByProduct(selectedBranchId, daysDiff, 10, salesByProductDateStart, salesByProductDateEnd), 
+        getDailySalesByProduct(selectedBranchId, daysDiff, 10, globalDateStart, globalDateEnd), 
         500
       );
       
@@ -796,7 +613,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     } finally {
       setDailySalesForWidgetLoading(false);
     }
-  }, [selectedBranchId, salesByProductDateStart, salesByProductDateEnd]);
+  }, [selectedBranchId, globalDateStart, globalDateEnd]);
 
   useEffect(() => {
     loadTopBranches();
@@ -840,7 +657,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setPaymentMethodsLoading(true);
     setPaymentMethodsSummary([]);
     try {
-      const data = await withMinimumDelay(getPaymentMethodsSummary(selectedBranchId, paymentMethodsDateStart, paymentMethodsDateEnd), 1000);
+      const data = await withMinimumDelay(getPaymentMethodsSummary(selectedBranchId, globalDateStart, globalDateEnd), 1000);
       setPaymentMethodsSummary(data);
     } catch {
       // Keep empty array instead of using sample data
@@ -848,20 +665,20 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     } finally {
       setPaymentMethodsLoading(false);
     }
-  }, [selectedBranchId, paymentMethodsDateStart, paymentMethodsDateEnd]);
+  }, [selectedBranchId, globalDateStart, globalDateEnd]);
 
   useEffect(() => {
     if (isKimsBrothersDashboard) {
       loadPaymentMethodsSummary();
     }
-  }, [loadPaymentMethodsSummary, isKimsBrothersDashboard]);
+  }, [loadPaymentMethodsSummary, isKimsBrothersDashboard, globalDateStart, globalDateEnd]);
 
   const loadSalesByCategory = useCallback(async () => {
     setSalesByCategoryLoading(true);
     setSalesByCategoryData([]);
     try {
       const result = await withMinimumDelay(
-        getSalesCategoryReport(selectedBranchId, salesByCategoryDateStart, salesByCategoryDateEnd),
+        getSalesCategoryReport(selectedBranchId, globalDateStart, globalDateEnd),
         500
       );
       // Map the API response to match the expected format
@@ -894,7 +711,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     } finally {
       setSalesByCategoryLoading(false);
     }
-  }, [selectedBranchId, salesByCategoryDateStart, salesByCategoryDateEnd, salesByCategoryEmployeeFilter]);
+  }, [selectedBranchId, globalDateStart, globalDateEnd, salesByCategoryEmployeeFilter]);
 
   // Load data when modal opens or filters change
   useEffect(() => {
@@ -902,15 +719,15 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       loadSalesByCategory();
       setSalesByCategoryPage(1);
     }
-  }, [salesByCategoryModalOpen, salesByCategoryDateStart, salesByCategoryDateEnd, salesByCategoryEmployeeFilter, loadSalesByCategory]);
+  }, [salesByCategoryModalOpen, globalDateStart, globalDateEnd, salesByCategoryEmployeeFilter, loadSalesByCategory]);
 
-  // Load goods sales report data
+  // Load goods sales report data (uses global date range)
   const loadGoodsSales = useCallback(async () => {
     setGoodsSalesLoading(true);
     setGoodsSalesData([]);
     try {
       const result = await withMinimumDelay(
-        getGoodsSalesReport(selectedBranchId, salesByProductDateStart, salesByProductDateEnd),
+        getGoodsSalesReport(selectedBranchId, globalDateStart, globalDateEnd),
         500
       );
       setGoodsSalesData(result);
@@ -920,7 +737,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     } finally {
       setGoodsSalesLoading(false);
     }
-  }, [selectedBranchId, salesByProductDateStart, salesByProductDateEnd]);
+  }, [selectedBranchId, globalDateStart, globalDateEnd]);
 
   // Load goods sales data when modal opens or filters change
   useEffect(() => {
@@ -928,15 +745,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       loadGoodsSales();
       setSalesByProductPage(1);
     }
-  }, [salesByProductModalOpen, salesByProductDateStart, salesByProductDateEnd, salesByProductEmployeeFilter, loadGoodsSales]);
+  }, [salesByProductModalOpen, globalDateStart, globalDateEnd, salesByProductEmployeeFilter, loadGoodsSales]);
 
-  // Load goods sales data and daily sales for dashboard widgets when date range changes
+  // Load goods sales data and daily sales for dashboard widgets when global date range changes
   useEffect(() => {
-    if (salesByProductDateStart && salesByProductDateEnd) {
+    if (globalDateStart && globalDateEnd) {
       loadGoodsSales();
       loadDailySalesByProductForWidget();
+      loadPopularMenuItems();
+      loadDailySalesByProduct();
     }
-  }, [salesByProductDateStart, salesByProductDateEnd, loadGoodsSales, loadDailySalesByProductForWidget]);
+  }, [globalDateStart, globalDateEnd, loadGoodsSales, loadDailySalesByProductForWidget, loadPopularMenuItems, loadDailySalesByProduct]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -999,7 +818,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     setTotalSalesDetailData([]);
     try {
       const result = await withMinimumDelay(
-        getSalesHourlySummary(selectedBranchId, kimsBrotherChartDateStart, kimsBrotherChartDateEnd),
+        getSalesHourlySummary(selectedBranchId, globalDateStart, globalDateEnd),
         300
       );
       setTotalSalesDetailData(result);
@@ -1008,14 +827,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     } finally {
       setTotalSalesDetailLoading(false);
     }
-  }, [selectedBranchId, kimsBrotherChartDateStart, kimsBrotherChartDateEnd]);
+  }, [selectedBranchId, globalDateStart, globalDateEnd]);
 
   useEffect(() => {
     if (totalSalesDetailModalOpen) {
       loadTotalSalesDetail();
       setTotalSalesDetailPage(1);
     }
-  }, [totalSalesDetailModalOpen, kimsBrotherChartDateStart, kimsBrotherChartDateEnd, loadTotalSalesDetail]);
+  }, [totalSalesDetailModalOpen, globalDateStart, globalDateEnd, loadTotalSalesDetail]);
 
   const loadReceiptStorageBox = useCallback(async () => {
     setReceiptLoading(true);
@@ -1096,12 +915,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const profit = totalRevenue - totalExpenses;
 
   const TOP_PRODUCT_COLORS = ['#78909c', '#9ccc65', '#42a5f5', '#ec407a', '#8b5cf6'] as const;
-  // Always use actual data from API, even if empty
-  const displayedPopularMenuItems = popularMenuItems;
-  const top5PopularMenuItems = displayedPopularMenuItems.slice(0, 5);
+  const top5PopularMenuItems = popularMenuItems.slice(0, 5);
   const PRODUCT_SERIES_DAYS = 30;
 
-  // Top 5 Products from goodsSalesData (Sales by Product)
+  // Top 5 Products from goodsSalesData (Sales by Product) - this is the correct amount
   const top5GoodsSales = (() => {
     if (!goodsSalesData || goodsSalesData.length === 0) {
       return [];
@@ -1111,121 +928,248 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       .slice(0, 5);
   })();
 
-  const productKeyToName = Object.fromEntries(
-    top5PopularMenuItems.map((p, idx) => [`p${idx}`, p.MENU_NAME])
-  ) as Record<string, string>;
 
-  // Get top 5 products from dailySalesByProductForWidget (grouped by product name)
-  const top5ProductsFromDailySales = (() => {
-    if (!dailySalesByProductForWidget || dailySalesByProductForWidget.length === 0) {
+  // Stacked chart data for Sales graph by product - use only goodsSalesData (same as Top 5 Products)
+  // Use dailySalesByProductForWidget only for daily breakdown dates, not for amounts
+  const productSalesStackedChartDataForWidget = (() => {
+    // Use top5GoodsSales as the source of truth for products and amounts (same as Top 5 Products widget)
+    const top5Products = top5GoodsSales.map(item => ({
+      name: item.goods,
+      totalRevenue: Number(item.net_sales || item.total_sales || 0),
+      id: item.id,
+      dailyBreakdown: new Map<string, number>()
+    }));
+    
+    if (top5Products.length === 0) {
       return [];
     }
     
-    // Group by product name and sum total revenue
-    const productMap = new Map<string, { name: string; menu_id: number; totalRevenue: number }>();
-    
-    dailySalesByProductForWidget.forEach((item) => {
-      if (!item || !item.MENU_NAME) return;
-      const name = item.MENU_NAME;
-      const menuId = item.menu_id || 0;
-      const revenue = Number(item.daily_revenue) || 0;
-      
-      if (productMap.has(name)) {
-        const existing = productMap.get(name)!;
-        existing.totalRevenue += revenue;
-      } else {
-        productMap.set(name, { name, menu_id: menuId, totalRevenue: revenue });
+    // Map product names for matching
+    const productNameMap = new Map<string, number>();
+    top5Products.forEach((product, idx) => {
+      const productName = product.name.toLowerCase().trim();
+      if (productName) {
+        productNameMap.set(productName, idx);
       }
     });
     
-    // Sort by total revenue and take top 5
-    return Array.from(productMap.values())
-      .sort((a, b) => b.totalRevenue - a.totalRevenue)
-      .slice(0, 5);
-  })();
-
-  // Stacked chart data for Sales graph by product using dailySalesByProductForWidget
-  const productSalesStackedChartDataForWidget = (() => {
-    if (!top5ProductsFromDailySales || top5ProductsFromDailySales.length === 0) {
+    // Add daily breakdown from dailySalesByProductForWidget (orders data) for dates only
+    // But don't add to totalRevenue to avoid double counting
+    if (dailySalesByProductForWidget && Array.isArray(dailySalesByProductForWidget) && dailySalesByProductForWidget.length > 0) {
+      dailySalesByProductForWidget.forEach((item) => {
+        if (!item || !item.MENU_NAME) return;
+        const productName = (item.MENU_NAME || '').toLowerCase().trim();
+        const productIdx = productNameMap.get(productName);
+        
+        if (productIdx !== undefined && item.date) {
+          // Only add daily breakdown for dates, don't modify totalRevenue
+          const revenue = Number(item.daily_revenue || 0);
+          let dateStr: string;
+          try {
+            if (typeof item.date === 'string') {
+              dateStr = item.date.slice(0, 10);
+            } else if (item.date instanceof Date) {
+              dateStr = formatDateLocal(item.date);
+            } else {
+              dateStr = formatDateLocal(new Date(item.date));
+            }
+            const current = top5Products[productIdx].dailyBreakdown.get(dateStr) || 0;
+            top5Products[productIdx].dailyBreakdown.set(dateStr, current + revenue);
+          } catch {
+            // Ignore date parsing errors
+          }
+        }
+      });
+    }
+    
+    if (top5Products.length === 0) {
       return [];
     }
 
-    // Create date range from salesByProductDateStart to salesByProductDateEnd
-    const startDate = new Date(salesByProductDateStart);
-    const endDate = new Date(salesByProductDateEnd);
+    // Create daily date range from global date range
+    const startDate = new Date(globalDateStart + 'T00:00:00');
+    const endDate = new Date(globalDateEnd + 'T00:00:00');
     const labels: string[] = [];
     const dateMap = new Map<string, string>();
     
     const currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-      const dateStr = currentDate.toISOString().slice(0, 10);
+    // Ensure we include the end date
+    const endDateInclusive = new Date(endDate);
+    endDateInclusive.setHours(23, 59, 59, 999);
+    
+    while (currentDate <= endDateInclusive) {
+      const dateStr = formatDateLocal(currentDate);
       const label = currentDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
       labels.push(label);
       dateMap.set(dateStr, label);
+      // MySQL DATE() returns 'YYYY-MM-DD' format - ensure we can match it
+      // The dateStr from formatDateLocal should already be in this format, but add it anyway for safety
+      // Also add ISO format (without timezone conversion) for matching
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const isoDateStr = `${year}-${month}-${day}`;
+      if (isoDateStr !== dateStr) {
+        dateMap.set(isoDateStr, label);
+      }
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // Create product name to index mapping
+    // Create product name to index mapping from top5Products
     const productNameToIndex = new Map<string, number>();
-    top5ProductsFromDailySales.forEach((item, idx) => {
-      productNameToIndex.set(item.name.toLowerCase().trim(), idx);
+    top5Products.forEach((item, idx) => {
+      const productName = item.name.toLowerCase().trim();
+      if (productName) {
+        productNameToIndex.set(productName, idx);
+      }
     });
 
     // Initialize daily data structure
     const dailyData = new Map<string, Map<number, number>>();
     labels.forEach((label) => {
       dailyData.set(label, new Map());
-      top5ProductsFromDailySales.forEach((_, idx) => {
+      top5Products.forEach((_, idx) => {
         dailyData.get(label)!.set(idx, 0);
       });
     });
 
-    // Fill in data from dailySalesByProductForWidget
-    if (dailySalesByProductForWidget && Array.isArray(dailySalesByProductForWidget)) {
-      dailySalesByProductForWidget.forEach((item) => {
-        if (!item || !item.MENU_NAME) return;
-        
-        // Match product name (case-insensitive, trimmed)
-        const productName = item.MENU_NAME.toLowerCase().trim();
-        const productIdx = productNameToIndex.get(productName);
-        
-        if (productIdx === undefined) return;
-        
-        let dateStr: string;
-        if (typeof item.date === 'string') {
-          dateStr = item.date.slice(0, 10);
-        } else if (item.date instanceof Date) {
-          dateStr = item.date.toISOString().slice(0, 10);
-        } else {
-          try {
-            dateStr = new Date(item.date).toISOString().slice(0, 10);
-          } catch {
-            return;
+    // Fill data from top5Products (which uses goodsSalesData for amounts, dailySalesByProductForWidget for daily breakdown)
+    top5Products.forEach((product, productIdx) => {
+      const productName = product.name.toLowerCase().trim();
+      
+      // If product has daily breakdown from orders, use it
+      if (product.dailyBreakdown && product.dailyBreakdown.size > 0) {
+        product.dailyBreakdown.forEach((revenue, dateStr) => {
+          // Try to match the date
+          let label = dateMap.get(dateStr);
+          if (!label) {
+            // Try alternative formats
+            try {
+              const dateObj = new Date(dateStr + 'T00:00:00');
+              const formattedStr = formatDateLocal(dateObj);
+              label = dateMap.get(formattedStr);
+            } catch {
+              // Ignore
+            }
           }
-        }
+          
+          if (label && dailyData.has(label)) {
+            const currentValue = dailyData.get(label)!.get(productIdx) || 0;
+            dailyData.get(label)!.set(productIdx, currentValue + revenue);
+          }
+        });
+      } else {
+        // No daily breakdown - distribute total revenue across all days
+        // Check if this product is in goodsSalesData with created_at
+        const goodsItem = goodsSalesData?.find(item => 
+          item.goods && (item.goods || '').toLowerCase().trim() === productName
+        );
         
-        const label = dateMap.get(dateStr);
-        if (label && dailyData.has(label)) {
-          const currentValue = dailyData.get(label)!.get(productIdx) || 0;
-          const revenue = Number(item.daily_revenue) || 0;
-          dailyData.get(label)!.set(productIdx, currentValue + revenue);
+        if (goodsItem && goodsItem.created_at) {
+          // Use created_at to assign to specific date
+          try {
+            const date = new Date(goodsItem.created_at);
+            let dateStr = formatDateLocal(date);
+            let label = dateMap.get(dateStr);
+            
+            if (!label) {
+              const isoStr = date.toISOString().slice(0, 10);
+              label = dateMap.get(isoStr);
+              if (label) dateStr = isoStr;
+            }
+            
+            if (label && dailyData.has(label)) {
+              const revenue = Number(goodsItem.net_sales || goodsItem.total_sales || 0);
+              const currentValue = dailyData.get(label)!.get(productIdx) || 0;
+              dailyData.get(label)!.set(productIdx, currentValue + revenue);
+            } else {
+              // Date not in range, distribute evenly
+              const revenue = Number(goodsItem.net_sales || goodsItem.total_sales || 0);
+              const dailyAmount = revenue / labels.length;
+              labels.forEach((label) => {
+                if (dailyData.has(label)) {
+                  const currentValue = dailyData.get(label)!.get(productIdx) || 0;
+                  dailyData.get(label)!.set(productIdx, currentValue + dailyAmount);
+                }
+              });
+            }
+          } catch {
+            // If date parsing fails, distribute evenly
+            const revenue = Number(goodsItem.net_sales || goodsItem.total_sales || 0);
+            const dailyAmount = revenue / labels.length;
+            labels.forEach((label) => {
+              if (dailyData.has(label)) {
+                const currentValue = dailyData.get(label)!.get(productIdx) || 0;
+                dailyData.get(label)!.set(productIdx, currentValue + dailyAmount);
+              }
+            });
+          }
+        } else {
+          // No created_at or not in goodsSalesData - distribute total revenue evenly
+          const dailyAmount = product.totalRevenue / labels.length;
+          labels.forEach((label) => {
+            if (dailyData.has(label)) {
+              const currentValue = dailyData.get(label)!.get(productIdx) || 0;
+              dailyData.get(label)!.set(productIdx, currentValue + dailyAmount);
+            }
+          });
         }
-      });
-    }
+      }
+    });
 
     return labels.map((label) => {
       const row: Record<string, string | number> = { name: label };
       const dayData = dailyData.get(label);
-      top5ProductsFromDailySales.forEach((_, pIdx) => {
+      top5Products.forEach((_, pIdx) => {
         row[`p${pIdx}`] = dayData?.get(pIdx) || 0;
       });
       return row as { name: string } & Record<string, number>;
     });
   })();
 
-  // Product key to name mapping for widget chart
+  // Product key to name mapping for widget chart (using combined top 5 products)
+  const top5ProductsForChart = (() => {
+    const allProductsMap = new Map<string, { name: string; totalRevenue: number; id?: number }>();
+    
+    if (goodsSalesData && Array.isArray(goodsSalesData)) {
+      goodsSalesData.forEach((item) => {
+        if (!item || !item.goods) return;
+        const productName = (item.goods || '').toLowerCase().trim();
+        if (productName) {
+          const revenue = Number(item.net_sales || item.total_sales || 0);
+          if (allProductsMap.has(productName)) {
+            const existing = allProductsMap.get(productName)!;
+            existing.totalRevenue += revenue;
+          } else {
+            allProductsMap.set(productName, { name: item.goods, totalRevenue: revenue, id: item.id });
+          }
+        }
+      });
+    }
+    
+    if (dailySalesByProductForWidget && Array.isArray(dailySalesByProductForWidget)) {
+      dailySalesByProductForWidget.forEach((item) => {
+        if (!item || !item.MENU_NAME) return;
+        const productName = (item.MENU_NAME || '').toLowerCase().trim();
+        if (productName) {
+          const revenue = Number(item.daily_revenue || 0);
+          if (allProductsMap.has(productName)) {
+            const existing = allProductsMap.get(productName)!;
+            existing.totalRevenue += revenue;
+          } else {
+            allProductsMap.set(productName, { name: item.MENU_NAME, totalRevenue: revenue, id: item.menu_id });
+          }
+        }
+      });
+    }
+    
+    return Array.from(allProductsMap.values())
+      .sort((a, b) => b.totalRevenue - a.totalRevenue)
+      .slice(0, 5);
+  })();
+
   const productKeyToNameForWidget = Object.fromEntries(
-    top5ProductsFromDailySales.map((p, idx) => [`p${idx}`, p.name || `Product ${idx + 1}`])
+    top5ProductsForChart.map((p, idx) => [`p${idx}`, p.name || `Product ${idx + 1}`])
   ) as Record<string, string>;
 
   const productSalesStackedChartData = (() => {
@@ -1328,30 +1272,33 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-purple-500/30 to-pink-500/30 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3"></div>
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-tr from-blue-500/20 to-indigo-500/20 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/3"></div>
         
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3">
-            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-200 to-pink-200 tracking-tight">
-              {branchName !== 'All Branches' ? `${branchName} ${t('dashboard')}` : t('network_overview')}
-            </h1>
-            <p className="text-purple-100/80 text-base font-semibold tracking-wide">
-              {currentBranch && currentBranch.BRANCH_NAME
-                ? `Management for: ${currentBranch.ADDRESS || '—'}`
-                : t('chain_wide_insights')}
-            </p>
+        <div className="relative flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-3">
+              <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-200 to-pink-200 tracking-tight">
+                {branchName !== 'All Branches' ? `${branchName} ${t('dashboard')}` : t('network_overview')}
+              </h1>
+              <p className="text-purple-100/80 text-base font-semibold tracking-wide">
+                {currentBranch && currentBranch.BRANCH_NAME
+                  ? `Management for: ${currentBranch.ADDRESS || '—'}`
+                  : t('chain_wide_insights')}
+              </p>
+            </div>
+            {isKimsBrothersDashboard && (
+              <button 
+                onClick={generateAIReport}
+                disabled={loadingAI}
+                className="group relative w-full md:w-auto bg-gradient-to-br from-amber-400 via-orange-500 to-pink-500 text-white px-8 py-3.5 rounded-2xl font-black flex items-center justify-center gap-3 shadow-[0_8px_32px_rgba(251,146,60,0.4)] hover:shadow-[0_12px_48px_rgba(251,146,60,0.6)] hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+                {loadingAI ? <Loader2 className="w-5 h-5 animate-spin relative z-10" /> : <Sparkles className="w-5 h-5 relative z-10" />}
+                <span className="text-sm md:text-base relative z-10">{t('ai_intelligence')}</span>
+              </button>
+            )}
           </div>
-          {isKimsBrothersDashboard && (
-            <button 
-              onClick={generateAIReport}
-              disabled={loadingAI}
-              className="group relative w-full md:w-auto bg-gradient-to-br from-amber-400 via-orange-500 to-pink-500 text-white px-8 py-3.5 rounded-2xl font-black flex items-center justify-center gap-3 shadow-[0_8px_32px_rgba(251,146,60,0.4)] hover:shadow-[0_12px_48px_rgba(251,146,60,0.6)] hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
-              {loadingAI ? <Loader2 className="w-5 h-5 animate-spin relative z-10" /> : <Sparkles className="w-5 h-5 relative z-10" />}
-              <span className="text-sm md:text-base relative z-10">{t('ai_intelligence')}</span>
-            </button>
-          )}
         </div>
       </div>
+
 
       {/* Simple 4-card KPI display - Available ONLY for Daraejung branch */}
       {isDaraejungBranch && (
@@ -1892,11 +1839,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     setValidationModalOpen(true);
                     setValidationLoading(true);
                     try {
-                      // Use the same date range as the chart to ensure consistency
+                      // Use global date range
                       const result = await validateImportedData(
                         selectedBranchId !== 'all' ? selectedBranchId : null,
-                        kimsBrotherChartDateStart,
-                        kimsBrotherChartDateEnd
+                        globalDateStart,
+                        globalDateEnd
                       );
                       setValidationResult(result);
                     } catch (err) {
@@ -1922,54 +1869,52 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               </div>
             </div>
             
+            {/* Global Date Range Picker */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-slate-200">
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="text-sm font-semibold text-slate-700 whitespace-nowrap flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-slate-500" />
+                  Date Range:
+                </label>
+                <input
+                  ref={globalDatePickerRef}
+                  type="text"
+                  readOnly
+                  value={`${globalDateStart} - ${globalDateEnd}`}
+                  placeholder="Select date range"
+                  className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-900 placeholder-slate-400 font-medium cursor-pointer min-w-[240px] hover:border-slate-400 transition-colors"
+                />
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                    setGlobalDateStart(formatDateLocal(startOfMonth));
+                    setGlobalDateEnd(formatDateLocal(today));
+                  }}
+                  className="px-3 py-2 text-sm font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-300 hover:border-slate-400"
+                >
+                  This Month
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const thirtyDaysAgo = new Date();
+                    thirtyDaysAgo.setDate(today.getDate() - 30);
+                    setGlobalDateStart(formatDateLocal(thirtyDaysAgo));
+                    setGlobalDateEnd(formatDateLocal(today));
+                  }}
+                  className="px-3 py-2 text-sm font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-300 hover:border-slate-400"
+                >
+                  Last 30 Days
+                </button>
+              </div>
+              <div className="text-sm text-slate-600 font-medium">
+                {formatDateForDisplay(globalDateStart)} - {formatDateForDisplay(globalDateEnd)}
+              </div>
+            </div>
+            
             {/* Controls Row */}
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Date Range Picker */}
-              <div className="relative flex-shrink-0">
-                <div className="flex items-center bg-white border border-slate-300 rounded-lg overflow-hidden hover:border-slate-400 transition-colors">
-                  {/* Left Arrow */}
-                  <button
-                    onClick={() => navigateDateRange('prev')}
-                    className="px-3 py-2.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors flex-shrink-0 border-r border-slate-300"
-                    type="button"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  
-                  {/* Date Display */}
-                  <button
-                    onClick={() => {
-                      if (kimsBrotherFlatpickrInstance.current) {
-                        kimsBrotherFlatpickrInstance.current.open();
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
-                    type="button"
-                  >
-                    <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                    <span>{getFormattedDateRange()}</span>
-                  </button>
-                  
-                  {/* Hidden input for Flatpickr */}
-                  <input
-                    ref={kimsBrotherDatePickerRef}
-                    type="text"
-                    className="absolute opacity-0 pointer-events-none"
-                    style={{ width: '1px', height: '1px' }}
-                    readOnly
-                  />
-                  
-                  {/* Right Arrow */}
-                  <button
-                    onClick={() => navigateDateRange('next')}
-                    className="px-3 py-2.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors flex-shrink-0 border-l border-slate-300"
-                    type="button"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              
               {/* Chart Type Selector */}
               <div className="relative chart-type-dropdown flex-shrink-0">
                 <button
@@ -2358,13 +2303,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             </div>
           </div>
           
-          <div className="relative mb-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
-              <div className="w-1.5 h-1.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse" />
-              <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName} · {formatDateForDisplay(salesByProductDateStart)} - {formatDateForDisplay(salesByProductDateEnd)}</p>
-            </div>
-          </div>
-          
           {goodsSalesLoading ? (
             <div className="flex items-center justify-center py-12 text-slate-400">
               <Loader2 className="w-8 h-8 animate-spin" />
@@ -2382,7 +2320,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               </div>
               {top5GoodsSales.map((item, index) => (
                 <div
-                  key={item.id}
+                  key={item.id ?? `top5-${index}-${item.goods}`}
                   className={`group/item relative flex items-center justify-between p-3.5 rounded-xl transition-all duration-300 ${
                     index < 4 ? 'border-b border-slate-100' : ''
                   } hover:bg-gradient-to-r hover:from-slate-50 hover:to-purple-50/30 hover:shadow-sm hover:border-purple-100`}
@@ -2442,91 +2380,53 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider">Product Performance</p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {top5ProductsFromDailySales.slice(0, 5).map((item, idx) => {
-                const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
-                const rgb = color.startsWith('#') 
-                  ? {
-                      r: parseInt(color.slice(1, 3), 16),
-                      g: parseInt(color.slice(3, 5), 16),
-                      b: parseInt(color.slice(5, 7), 16)
-                    }
-                  : { r: 148, g: 163, b: 184 };
-                return (
-                  <div 
-                    key={`${item.menu_id}-${idx}`} 
-                    className="group/legend relative flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all duration-200"
-                    style={{ 
-                      background: `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.02))`
-                    }}
-                  >
-                    <div className="relative flex-shrink-0">
-                      <div 
-                        className="absolute inset-0 rounded-full blur-sm opacity-60"
-                        style={{ backgroundColor: color }}
-                      />
-                      <div 
-                        className="relative w-2 h-2 rounded-full shadow-sm ring-1 ring-white"
-                        style={{ backgroundColor: color }}
-                      />
-                    </div>
-                    <span 
-                      className="text-[8px] font-bold truncate max-w-[55px] group-hover/legend:scale-105 transition-transform"
-                      style={{ color: color }}
-                    >
-                      {item.name}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          
-          <div className="relative mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-md border border-indigo-100 shadow-sm">
-                <div className="relative flex-shrink-0">
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full blur-sm opacity-50" />
-                  <div className="relative w-1.5 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full animate-pulse" />
-                </div>
-                <p className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">{currentContextName}</p>
-              </div>
-              
-              {/* Date Range Picker */}
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-semibold text-slate-700 whitespace-nowrap">Date Range:</label>
-                <input
-                  ref={salesByProductWidgetDatePickerRef}
-                  type="text"
-                  readOnly
-                  value={`${salesByProductDateStart} - ${salesByProductDateEnd}`}
-                  placeholder="Select date range"
-                  className="px-3 py-1.5 text-xs border-2 border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-slate-900 font-medium cursor-pointer min-w-[220px]"
-                />
-              </div>
-              
-              {/* Last 30 Days Button */}
+            <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => {
-                  const today = new Date();
-                  const thirtyDaysAgo = new Date();
-                  thirtyDaysAgo.setDate(today.getDate() - 30);
-                  setSalesByProductDateStart(thirtyDaysAgo.toISOString().slice(0, 10));
-                  setSalesByProductDateEnd(today.toISOString().slice(0, 10));
-                }}
-                className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md"
+                onClick={() => setSalesByProductModalOpen(true)}
+                className="group/btn relative flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-bold rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
               >
-                Last 30 Days
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>View Sales by Product</span>
               </button>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {top5ProductsForChart.slice(0, 5).map((item, idx) => {
+                  const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
+                  const rgb = color.startsWith('#') 
+                    ? {
+                        r: parseInt(color.slice(1, 3), 16),
+                        g: parseInt(color.slice(3, 5), 16),
+                        b: parseInt(color.slice(5, 7), 16)
+                      }
+                    : { r: 148, g: 163, b: 184 };
+                  return (
+                    <div 
+                      key={`${item.id || idx}-${idx}`} 
+                      className="group/legend relative flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all duration-200"
+                      style={{ 
+                        background: `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.02))`
+                      }}
+                    >
+                      <div className="relative flex-shrink-0">
+                        <div 
+                          className="absolute inset-0 rounded-full blur-sm opacity-60"
+                          style={{ backgroundColor: color }}
+                        />
+                        <div 
+                          className="relative w-2 h-2 rounded-full shadow-sm ring-1 ring-white"
+                          style={{ backgroundColor: color }}
+                        />
+                      </div>
+                      <span 
+                        className="text-[8px] font-bold truncate max-w-[55px] group-hover/legend:scale-105 transition-transform"
+                        style={{ color: color }}
+                      >
+                        {item.name}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            
-            <button
-              onClick={() => setSalesByProductModalOpen(true)}
-              className="group/btn relative flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-bold rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>View Sales by Product</span>
-            </button>
           </div>
           
           <div className="relative h-72 md:h-96 min-h-[280px]">
@@ -2535,23 +2435,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             
             {goodsSalesLoading || dailySalesForWidgetLoading ? (
               <ChartLoadingSkeleton type="stacked" />
-            ) : !dailySalesByProductForWidget || dailySalesByProductForWidget.length === 0 ? (
+            ) : productSalesStackedChartDataForWidget.length === 0 || !top5ProductsForChart || top5ProductsForChart.length === 0 ? (
               <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
                 <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
                 <p className="text-sm font-semibold text-slate-500">No sales data available</p>
-                <p className="text-xs text-slate-400 mt-1">Sales data will appear here once orders are placed</p>
-              </div>
-            ) : productSalesStackedChartDataForWidget.length === 0 || !top5ProductsFromDailySales || top5ProductsFromDailySales.length === 0 ? (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
-                <p className="text-sm font-semibold text-slate-500">No products found in date range</p>
-                <p className="text-xs text-slate-400 mt-1">Try selecting a different date range</p>
+                <p className="text-xs text-slate-400 mt-1">Sales data will appear here once orders are placed or data is imported</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={288} minWidth={0} minHeight={280}>
                 <BarChart data={productSalesStackedChartDataForWidget} margin={{ left: 8, right: 16, bottom: 32, top: 8 }}>
                   <defs>
-                    {top5ProductsFromDailySales.map((item, idx) => {
+                    {top5ProductsForChart.map((item, idx) => {
                       const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
                       const rgb = color.startsWith('#') 
                         ? {
@@ -2561,7 +2455,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                           }
                         : { r: 148, g: 163, b: 184 };
                       return (
-                        <linearGradient key={`${item.menu_id}-${idx}`} id={`productGradientWidget${idx}`} x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient key={`${item.id || idx}-${idx}`} id={`productGradientWidget${idx}`} x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor={`rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`} stopOpacity={1} />
                           <stop offset="100%" stopColor={`rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})`} stopOpacity={0.85} />
                         </linearGradient>
@@ -2673,7 +2567,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       );
                     }}
                   />
-                  {top5ProductsFromDailySales.map((item, idx) => {
+                  {top5ProductsForChart.map((item, idx) => {
                     const color = TOP_PRODUCT_COLORS[idx] ?? '#94a3b8';
                     const rgb = color.startsWith('#') 
                       ? {
@@ -2683,10 +2577,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                         }
                       : { r: 148, g: 163, b: 184 };
                     // Only the topmost bar (last one) should have rounded top corners
-                    const isTopBar = idx === top5ProductsFromDailySales.length - 1;
+                    const isTopBar = idx === top5ProductsForChart.length - 1;
                     return (
                       <Bar
-                        key={`${item.menu_id}-${idx}`}
+                        key={`${item.id || idx}-${idx}`}
                         dataKey={`p${idx}`}
                         stackId="products"
                         fill={`url(#productGradientWidget${idx})`}
@@ -2898,7 +2792,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     const link = document.createElement('a');
                     const url = URL.createObjectURL(blob);
                     link.setAttribute('href', url);
-                    link.setAttribute('download', `sales-by-category-${salesByCategoryDateStart}-${salesByCategoryDateEnd}.csv`);
+                    link.setAttribute('download', `sales-by-category-${globalDateStart}-${globalDateEnd}.csv`);
                     link.style.visibility = 'hidden';
                     document.body.appendChild(link);
                     link.click();
@@ -3052,33 +2946,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               {/* Filters Section - Simple Design */}
               <div className="p-4 md:p-6 border-b border-slate-200 bg-white">
                 <div className="flex items-center gap-4 flex-wrap">
-                  {/* Date Range */}
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">Date Range:</label>
-                    <input
-                      ref={salesByCategoryDatePickerRef}
-                      type="text"
-                      readOnly
-                      value={`${salesByCategoryDateStart} - ${salesByCategoryDateEnd}`}
-                      placeholder="Select date range"
-                      className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-slate-900 font-medium cursor-pointer min-w-[220px]"
-                    />
-                  </div>
-                  
-                  {/* Last 30 Days Button */}
-                  <button
-                    onClick={() => {
-                      const today = new Date();
-                      const thirtyDaysAgo = new Date();
-                      thirtyDaysAgo.setDate(today.getDate() - 30);
-                      setSalesByCategoryDateStart(thirtyDaysAgo.toISOString().slice(0, 10));
-                      setSalesByCategoryDateEnd(today.toISOString().slice(0, 10));
-                    }}
-                    className="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm hover:shadow-md"
-                  >
-                    Last 30 Days
-                  </button>
-                  
                   {/* Employee Filter Dropdown */}
                   <div className="relative employee-filter-dropdown ml-auto">
                     <button
@@ -3309,7 +3176,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     const link = document.createElement('a');
                     const url = URL.createObjectURL(blob);
                     link.setAttribute('href', url);
-                    link.setAttribute('download', `sales-by-product-${salesByProductDateStart}-${salesByProductDateEnd}.csv`);
+                    link.setAttribute('download', `sales-by-product-${globalDateStart}-${globalDateEnd}.csv`);
                     link.style.visibility = 'hidden';
                     document.body.appendChild(link);
                     link.click();
@@ -3491,33 +3358,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               {/* Filters Section - Simple Design */}
               <div className="p-4 md:p-6 border-b border-slate-200 bg-white">
                 <div className="flex items-center gap-4 flex-wrap">
-                  {/* Date Range */}
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">Date Range:</label>
-                    <input
-                      ref={salesByProductDatePickerRef}
-                      type="text"
-                      readOnly
-                      value={`${salesByProductDateStart} - ${salesByProductDateEnd}`}
-                      placeholder="Select date range"
-                      className="px-3 py-2 text-sm border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-slate-900 font-medium cursor-pointer min-w-[220px]"
-                    />
-                  </div>
-                  
-                  {/* Last 30 Days Button */}
-                  <button
-                    onClick={() => {
-                      const today = new Date();
-                      const thirtyDaysAgo = new Date();
-                      thirtyDaysAgo.setDate(today.getDate() - 30);
-                      setSalesByProductDateStart(thirtyDaysAgo.toISOString().slice(0, 10));
-                      setSalesByProductDateEnd(today.toISOString().slice(0, 10));
-                    }}
-                    className="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md"
-                  >
-                    Last 30 Days
-                  </button>
-                  
                   {/* Employee Filter Dropdown */}
                   <div className="relative sales-by-product-employee-filter-dropdown ml-auto">
                     <button
@@ -4649,7 +4489,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     const link = document.createElement('a');
                     const url = URL.createObjectURL(blob);
                     link.setAttribute('href', url);
-                    link.setAttribute('download', `total-sales-detail-${kimsBrotherChartDateStart}-${kimsBrotherChartDateEnd}.csv`);
+                    link.setAttribute('download', `total-sales-detail-${globalDateStart}-${globalDateEnd}.csv`);
                     link.style.visibility = 'hidden';
                     document.body.appendChild(link);
                     link.click();
@@ -4846,7 +4686,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-slate-500" />
                   <span className="text-sm font-semibold text-slate-700">
-                    Date Range: {formatDateForDisplay(kimsBrotherChartDateStart)} - {formatDateForDisplay(kimsBrotherChartDateEnd)}
+                    Date Range: {formatDateForDisplay(globalDateStart)} - {formatDateForDisplay(globalDateEnd)}
                   </span>
                 </div>
               </div>
