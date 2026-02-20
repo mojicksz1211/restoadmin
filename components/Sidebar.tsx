@@ -49,6 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { t } = useTranslation('common');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const {
     canViewDashboard,
@@ -129,6 +130,12 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   // Filter menu items based on permissions
   const menuItems = allMenuItems.filter(item => item.canAccess);
+  const inventorySubItems = [
+    { id: 'inventory_products', label: 'Products' },
+    { id: 'inventory_materials', label: 'Materials' },
+    { id: 'inventory_categories', label: 'Product Categories' },
+  ];
+  const isInventoryTabActive = inventorySubItems.some(sub => sub.id === activeTab) || activeTab === 'inventory';
 
   const currentOption = branchOptions.find((opt) => opt.value === selectedBranchId);
   const currentLabel = selectedBranchId === 'all' ? t('global_view') : (currentOption?.label || t('branch'));
@@ -142,6 +149,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    setIsInventoryOpen(isInventoryTabActive);
+  }, [isInventoryTabActive]);
 
   return (
     <div className={`w-64 h-screen bg-slate-900 text-white flex flex-col fixed left-0 top-0 z-50 border-r border-slate-800 transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -212,18 +223,57 @@ const Sidebar: React.FC<SidebarProps> = ({
       
       <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar pb-6">
         {menuItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActiveTab(item.id)}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-              activeTab === item.id 
-                ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' 
-                : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
-            }`}
-          >
-            <item.icon className="w-5 h-5" />
-            <span className="text-sm font-bold">{item.label}</span>
-          </button>
+          item.id === 'inventory' ? (
+            <div key={item.id} className="space-y-1">
+              <button
+                onClick={() => {
+                  setIsInventoryOpen((prev) => !prev);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 ${
+                  isInventoryTabActive
+                    ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <item.icon className="w-5 h-5" />
+                  <span className="text-sm font-bold">{item.label}</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 transition-transform ${isInventoryOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isInventoryOpen && (
+                <div className="pl-3 space-y-1">
+                  {inventorySubItems.map((subItem) => (
+                    <button
+                      key={subItem.id}
+                      onClick={() => setActiveTab(subItem.id)}
+                      className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-all duration-200 ${
+                        activeTab === subItem.id
+                          ? 'bg-orange-500/70 text-white font-semibold'
+                          : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                      }`}
+                    >
+                      {subItem.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                activeTab === item.id 
+                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' 
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+              }`}
+            >
+              <item.icon className="w-5 h-5" />
+              <span className="text-sm font-bold">{item.label}</span>
+            </button>
+          )
         ))}
       </nav>
 

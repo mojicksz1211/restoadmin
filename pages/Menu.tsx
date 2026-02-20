@@ -4,6 +4,9 @@ import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, Ch
 import { MOCK_BRANCHES } from '../constants';
 import { MenuCategory, MenuRecord, BranchRecord } from '../types';
 import { getMenuCategories, getMenus, createMenu, updateMenu, deleteMenu } from '../services/menuService';
+import { getInventoryProducts, type InventoryProduct } from '../services/inventoryProductService';
+import { getInventoryMaterials, type InventoryMaterial } from '../services/inventoryMaterialService';
+import { getMenuInventoryMappings } from '../services/inventoryMappingService';
 import { translateText, i18nToTranslateTarget } from '../services/translateService';
 import { getApiBaseUrl } from '../utils/apiConfig';
 
@@ -12,17 +15,24 @@ interface MenuProps {
 }
 
 type DropdownOption = { value: string; label: string; disabled?: boolean };
+type RecipeRow = {
+  id: string;
+  resourceType: '' | 'product' | 'material';
+  resourceId: string;
+  quantity: string;
+};
 
 const Dropdown: React.FC<{
   value: string;
   options: DropdownOption[];
   onChange: (next: string) => void;
+  onOpen?: () => void;
   placeholder?: string;
   buttonClassName?: string;
   menuClassName?: string;
   itemClassName?: string;
   openUpward?: boolean;
-}> = ({ value, options, onChange, placeholder = 'Select...', buttonClassName = '', menuClassName = '', itemClassName = '', openUpward = false }) => {
+}> = ({ value, options, onChange, onOpen, placeholder = 'Select...', buttonClassName = '', menuClassName = '', itemClassName = '', openUpward = false }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -40,7 +50,13 @@ const Dropdown: React.FC<{
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() =>
+          setOpen((o) => {
+            const nextOpen = !o;
+            if (nextOpen) onOpen?.();
+            return nextOpen;
+          })
+        }
         className={[
           'w-full flex items-center justify-between pl-4 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium hover:bg-slate-100 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white focus:outline-none transition-colors',
           buttonClassName,
@@ -121,6 +137,24 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MenuRecord | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [inventoryProducts, setInventoryProducts] = useState<InventoryProduct[]>([]);
+  const [inventoryMaterials, setInventoryMaterials] = useState<InventoryMaterial[]>([]);
+  const [recipeRows, setRecipeRows] = useState<RecipeRow[]>([]);
+  const [loadingRecipeRefs, setLoadingRecipeRefs] = useState(false);
+  const modalContentScrollRef = useRef<HTMLDivElement>(null);
+  const nudgeModalScrollForRecipeDropdown = () => {
+    const el = modalContentScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ top: 140, behavior: 'smooth' });
+  };
+
+
+  const createRecipeRow = (partial?: Partial<RecipeRow>): RecipeRow => ({
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `recipe-${Date.now()}-${Math.random()}`,
+    resourceType: partial?.resourceType ?? '',
+    resourceId: partial?.resourceId ?? '',
+    quantity: partial?.quantity ?? '1',
+  });
 
   // SweetAlert-style dialogs (success / error / confirmation)
   const [swal, setSwal] = useState<{
@@ -200,9 +234,10 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
       ].join(' ').toLowerCase().includes(normalizedSearch);
 
       const matchesCategory = selectedCategory === 'all' || menu.categoryId === selectedCategory;
+      const menuAvailable = menu.effectiveAvailable ?? menu.isAvailable;
       const matchesAvailability = availability === 'all'
-        || (availability === 'available' && menu.isAvailable)
-        || (availability === 'unavailable' && !menu.isAvailable);
+        || (availability === 'available' && menuAvailable)
+        || (availability === 'unavailable' && !menuAvailable);
 
       return matchesSearch && matchesCategory && matchesAvailability;
     });
@@ -303,6 +338,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     });
     setImageFile(null);
     setSubmitError(null);
+    setRecipeRows([]);
   };
 
   const handleOpenAdd = () => {
@@ -310,7 +346,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     setIsAddModalOpen(true);
   };
 
-  const handleOpenEdit = (menu: MenuRecord) => {
+  const handleOpenEdit = async (menu: MenuRecord) => {
     setEditingMenu(menu);
     setFormState({
       name: menu.name,
@@ -323,8 +359,59 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     });
     setImageFile(null);
     setSubmitError(null);
+    setRecipeRows([]);
     setIsEditModalOpen(true);
+    try {
+      const mappings = await getMenuInventoryMappings(menu.id);
+      const rows = mappings.map((mapping) =>
+        createRecipeRow({
+          resourceType: mapping.product_id ? 'product' : mapping.material_id ? 'material' : '',
+          resourceId: String(mapping.product_id || mapping.material_id || ''),
+          quantity: String(mapping.quantity || 1),
+        })
+      );
+      setRecipeRows(rows);
+    } catch {
+      setRecipeRows([]);
+    }
   };
+
+  const activeRecipeBranchId = formState.branchId || (selectedBranchId === 'all' ? '' : selectedBranchId);
+  const canLoadRecipeRefs = Boolean(activeRecipeBranchId && activeRecipeBranchId !== 'all');
+
+  useEffect(() => {
+    if (!(isAddModalOpen || isEditModalOpen)) return;
+    if (!canLoadRecipeRefs) {
+      setInventoryProducts([]);
+      setInventoryMaterials([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingRecipeRefs(true);
+    Promise.all([
+      getInventoryProducts(activeRecipeBranchId),
+      getInventoryMaterials(activeRecipeBranchId),
+    ])
+      .then(([products, materials]) => {
+        if (cancelled) return;
+        setInventoryProducts(products.filter((p) => p.status === 'Active'));
+        setInventoryMaterials(materials.filter((m) => m.status === 'Active'));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setInventoryProducts([]);
+        setInventoryMaterials([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingRecipeRefs(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAddModalOpen, isEditModalOpen, canLoadRecipeRefs, activeRecipeBranchId]);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -377,6 +464,23 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
       setSubmitError(t('please_select_branch'));
       return;
     }
+    const hasInvalidRecipeRow = recipeRows.some((row) => {
+      const touched = row.resourceType || row.resourceId || row.quantity;
+      if (!touched) return false;
+      const qty = Number(row.quantity);
+      return !row.resourceType || !row.resourceId || !Number.isFinite(qty) || qty <= 0;
+    });
+    if (hasInvalidRecipeRow) {
+      setSubmitError('Complete recipe rows correctly (type, item, and qty > 0), or remove incomplete rows.');
+      return;
+    }
+    const inventoryMappings = recipeRows
+      .map((row) => ({
+        product_id: row.resourceType === 'product' ? Number(row.resourceId) : null,
+        material_id: row.resourceType === 'material' ? Number(row.resourceId) : null,
+        quantity: Number(row.quantity),
+      }))
+      .filter((row) => (row.product_id || row.material_id) && Number.isFinite(row.quantity) && row.quantity > 0);
 
     const menuName = formState.name.trim() || t('untitled');
     const actionTitle = mode === 'add' ? t('create_menu_item') : t('update_menu_item');
@@ -405,6 +509,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
               description: formState.description.trim() || null,
               price: Number(formState.price || 0),
               isAvailable: formState.isAvailable,
+              inventoryMappings,
               imageFile: imageFile ?? undefined,
             });
             await refreshData();
@@ -423,6 +528,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
               description: formState.description.trim() || null,
               price: Number(formState.price || 0),
               isAvailable: formState.isAvailable,
+              inventoryMappings,
               existingImagePath: formState.imageUrl || undefined,
               imageFile: imageFile ?? undefined,
             });
@@ -548,6 +654,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('menu_item')}</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('category')}</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('price')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Stocks</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('availability')}</th>
                 {selectedBranchId === 'all' && (
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('branch')}</th>
@@ -558,7 +665,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={selectedBranchId === 'all' ? 6 : 5} className="px-6 py-16 text-center text-slate-400 text-sm">
+                  <td colSpan={selectedBranchId === 'all' ? 7 : 6} className="px-6 py-16 text-center text-slate-400 text-sm">
                     {t('loading_menu_data')}
                   </td>
                 </tr>
@@ -592,11 +699,32 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                         <span className="text-sm font-bold text-slate-900">₱{menu.price.toLocaleString()}</span>
                       </td>
                       <td className="px-6 py-4">
+                        {menu.inventoryTracked ? (
+                          Number(menu.inventoryStock || 0) <= 0 ? (
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium uppercase tracking-tight bg-red-100 text-red-700">
+                              Out: {Number(menu.inventoryStock || 0).toLocaleString()}
+                            </span>
+                          ) : Number(menu.inventoryStock || 0) < 20 ? (
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium uppercase tracking-tight bg-orange-100 text-orange-700">
+                              Low: {Number(menu.inventoryStock || 0).toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium uppercase tracking-tight bg-green-100 text-green-700">
+                              Stock: {Number(menu.inventoryStock || 0).toLocaleString()}
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium uppercase tracking-tight bg-slate-100 text-slate-500">
+                            N/A
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight ${
-                          menu.isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          (menu.effectiveAvailable ?? menu.isAvailable) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                         }`}>
-                          {menu.isAvailable ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <X className="w-3 h-3 mr-1" />}
-                          {menu.isAvailable ? t('available') : t('unavailable')}
+                          {(menu.effectiveAvailable ?? menu.isAvailable) ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <X className="w-3 h-3 mr-1" />}
+                          {(menu.effectiveAvailable ?? menu.isAvailable) ? t('available') : t('unavailable')}
                         </span>
                       </td>
                       {selectedBranchId === 'all' && (
@@ -630,7 +758,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={selectedBranchId === 'all' ? 6 : 5} className="px-6 py-16 text-center">
+                  <td colSpan={selectedBranchId === 'all' ? 7 : 6} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center text-slate-400">
                       <Utensils className="w-12 h-12 mb-4 opacity-20" />
                       <p className="text-lg font-medium">{t('no_menu_items_found')}</p>
@@ -649,40 +777,38 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
               <span className="text-slate-900 font-bold">
                 {displayedMenus.length}
               </span>
-              {' '}{t('of')}{' '}
-              <span className="text-slate-900 font-bold">{filteredMenus.length}</span>
-              {' '}{t('menu_items_label')}
-            </p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <label className="text-xs font-medium text-slate-500">
-              {t('items_per_page') || 'Items per page'}:
-            </label>
-            <select
-              value={displayLimit}
-              onChange={(e) => {
-                const limit = Number(e.target.value);
-                setDisplayLimit(limit);
-                // Scroll to top when limit changes
-                if (scrollContainerRef.current) {
-                  scrollContainerRef.current.scrollTop = 0;
-                }
-              }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
-            >
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-              <option value={150}>150</option>
-              <option value={200}>200</option>
-              <option value={250}>250</option>
-              <option value={300}>300</option>
-              <option value={350}>350</option>
-              <option value={400}>400</option>
-              <option value={450}>450</option>
-              <option value={500}>500</option>
-            </select>
-          </div>
+          </p>
+          <div className="h-4 w-px bg-slate-200"></div>
+          <p className="text-xs text-slate-500 font-medium">
+            <span className="text-green-600 font-bold">{filteredMenus.filter(m => m.isAvailable).length}</span> {t('available')}
+          </p>
         </div>
+        <div className="flex items-center space-x-3">
+          <label className="text-xs font-medium text-slate-600 whitespace-nowrap">
+            Page Line Count:
+          </label>
+          <Dropdown
+            value={String(displayLimit)}
+            onChange={(v) => {
+              const limit = parseInt(v, 10);
+              // Immediately show the selected number of items
+              setDisplayLimit(Math.min(limit, filteredMenus.length));
+              // Scroll to top when limit changes
+              if (scrollContainerRef.current) {
+                scrollContainerRef.current.scrollTop = 0;
+              }
+            }}
+            options={[
+              { value: '10', label: '10' },
+              { value: '20', label: '20' },
+              { value: '50', label: '50' },
+              { value: '100', label: '100' },
+            ]}
+            buttonClassName="w-20"
+            openUpward={true}
+          />
+        </div>
+      </div>
       </div>
 
       {(isAddModalOpen || isEditModalOpen) && (
@@ -697,7 +823,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             }}
           ></div>
           <div className="relative min-h-screen flex items-center justify-center p-4 sm:p-6">
-            <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-visible animate-in zoom-in-95 duration-200">
+            <div className="bg-white w-full max-w-xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-orange-500 rounded-xl text-white">
@@ -726,12 +852,13 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             </div>
 
             <form
-              className="p-6 space-y-4"
+              className="flex flex-col flex-1 min-h-0"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSubmit(isEditModalOpen ? 'edit' : 'add');
               }}
             >
+              <div ref={modalContentScrollRef} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5 sm:col-span-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('menu_name')}</label>
@@ -765,6 +892,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                     ]}
                     buttonClassName="p-3 py-3 pl-3 pr-3"
                     itemClassName="px-3"
+                    openUpward={true}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -791,6 +919,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                       ]}
                       buttonClassName="p-3 py-3 pl-3 pr-3"
                       itemClassName="px-3"
+                      openUpward={true}
                     />
                   </div>
                 )}
@@ -805,6 +934,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                     ]}
                     buttonClassName="p-3 py-3 pl-3 pr-3"
                     itemClassName="px-3"
+                    openUpward={true}
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
@@ -819,13 +949,100 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                     <p className="text-[10px] text-slate-500 mt-1">{t('current_image_kept')}</p>
                   )}
                 </div>
+
+                <div className="space-y-2 sm:col-span-2 border border-slate-200 bg-slate-50 rounded-xl p-3">
+                  <div className="sticky top-0 z-10 -mx-3 px-3 py-1 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                      Inventory Recipe Mapping
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setRecipeRows((prev) => [...prev, createRecipeRow()])}
+                      className="px-2.5 py-1.5 rounded-lg bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600 disabled:opacity-50"
+                      disabled={!canLoadRecipeRefs || loadingRecipeRefs}
+                    >
+                      Add Row
+                    </button>
+                  </div>
+                  {!canLoadRecipeRefs ? (
+                    <p className="text-xs text-slate-500">Select a specific branch first to configure recipe mappings.</p>
+                  ) : loadingRecipeRefs ? (
+                    <p className="text-xs text-slate-500">Loading products and materials...</p>
+                  ) : recipeRows.length === 0 ? (
+                    <p className="text-xs text-slate-500">No mappings yet. Add rows to deduct inventory when this menu is settled.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {recipeRows.map((row) => {
+                        const itemOptions: DropdownOption[] =
+                          row.resourceType === 'product'
+                            ? inventoryProducts.map((item) => ({ value: item.id, label: `${item.name} (Stock: ${item.stock})` }))
+                            : row.resourceType === 'material'
+                            ? inventoryMaterials.map((item) => ({ value: item.id, label: `${item.name} (Stock: ${item.stock})` }))
+                            : [];
+
+                        return (
+                          <div key={row.id} className="grid grid-cols-1 sm:grid-cols-[140px_1fr_110px_44px] gap-2">
+                            <Dropdown
+                              value={row.resourceType}
+                              onChange={(v) =>
+                                setRecipeRows((prev) =>
+                                  prev.map((x) =>
+                                    x.id === row.id
+                                      ? { ...x, resourceType: v as RecipeRow['resourceType'], resourceId: '' }
+                                      : x
+                                  )
+                                )
+                              }
+                              options={[
+                                { value: '', label: 'Select Type' },
+                                { value: 'product', label: 'Product' },
+                                { value: 'material', label: 'Material' },
+                              ]}
+                              onOpen={nudgeModalScrollForRecipeDropdown}
+                              buttonClassName="py-2.5 px-3 text-sm"
+                            />
+                            <Dropdown
+                              value={row.resourceId}
+                              onChange={(v) =>
+                                setRecipeRows((prev) => prev.map((x) => (x.id === row.id ? { ...x, resourceId: v } : x)))
+                              }
+                              options={[{ value: '', label: 'Select Item' }, ...itemOptions]}
+                              onOpen={nudgeModalScrollForRecipeDropdown}
+                              buttonClassName="py-2.5 px-3 text-sm"
+                            />
+                            <input
+                              type="number"
+                              min={0.001}
+                              step="0.001"
+                              value={row.quantity}
+                              onChange={(e) =>
+                                setRecipeRows((prev) => prev.map((x) => (x.id === row.id ? { ...x, quantity: e.target.value } : x)))
+                              }
+                              className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-orange-500/20 focus:outline-none focus:border-orange-500"
+                              placeholder="Qty"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setRecipeRows((prev) => prev.filter((x) => x.id !== row.id))}
+                              className="h-[42px] rounded-xl bg-white border border-red-200 text-red-500 hover:bg-red-50 text-sm font-bold"
+                              title="Remove row"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {submitError && (
                 <div className="text-sm text-red-600 bg-red-50 p-3 rounded-xl">{submitError}</div>
               )}
+              </div>
 
-              <div className="pt-4 flex items-center space-x-3">
+              <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center space-x-3">
                 <button 
                   type="button"
                   onClick={() => {

@@ -123,30 +123,24 @@ export const checkSession = async (): Promise<AuthUser | null> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(buildUrl('/check-permission'), {
-      method: 'POST',
+    // Use /me so unauthenticated state returns 200 + null (no noisy 401 in console)
+    const token = getAccessToken();
+    const response = await fetch(buildUrl('/me'), {
+      method: 'GET',
       credentials: 'include',
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    if (!response.ok) {
+    if (!response.ok) return null;
+    const json = (await response.json()) as { success?: boolean; data?: AuthResponse['data'] | null };
+    if (!json?.success || !json.data) {
       return null;
     }
-    const json = (await response.json()) as { permissions?: number };
-    if (!json || typeof json.permissions !== 'number') {
-      return null;
-    }
-    return {
-      userId: 0,
-      username: '',
-      firstname: '',
-      lastname: '',
-      permissions: json.permissions,
-      branchId: null,
-      branchName: null,
-      branchCode: null,
-    };
+    return mapUser(json.data);
   } catch {
     clearTimeout(timeoutId);
     return null;

@@ -120,4 +120,8 @@ export interface MenuRecord {
   encodedAt: string;
   editedBy: string | null;
   editedAt: string | null;
+  inventoryTracked?: boolean;
+  inventoryAvailable?: boolean;
+  inventoryStock?: number | null;
+  effectiveAvailable?: boolean;
 }

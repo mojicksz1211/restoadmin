@@ -26,6 +26,10 @@ type MenuApiRecord = {
   ENCODED_DT?: string;
   EDITED_BY?: string | null;
   EDITED_DT?: string | null;
+  INVENTORY_TRACKED?: number | boolean;
+  INVENTORY_AVAILABLE?: number | boolean;
+  INVENTORY_STOCK?: number | string | null;
+  EFFECTIVE_AVAILABLE?: number | boolean;
 };
 
 type CategoryApiRecord = {
@@ -61,12 +65,21 @@ const mapMenuRecord = (row: MenuApiRecord): MenuRecord => ({
   description: row.MENU_DESCRIPTION ?? null,
   imageUrl: row.MENU_IMG ?? null,
   price: Number(row.MENU_PRICE ?? 0),
-  isAvailable: Boolean(row.IS_AVAILABLE),
+  isAvailable:
+    row.EFFECTIVE_AVAILABLE === undefined ? Boolean(row.IS_AVAILABLE) : Boolean(row.EFFECTIVE_AVAILABLE),
   active: Boolean(row.ACTIVE),
   encodedBy: row.ENCODED_BY || '',
   encodedAt: row.ENCODED_DT || '',
   editedBy: row.EDITED_BY ?? null,
   editedAt: row.EDITED_DT ?? null,
+  inventoryTracked: row.INVENTORY_TRACKED === undefined ? undefined : Boolean(row.INVENTORY_TRACKED),
+  inventoryAvailable: row.INVENTORY_AVAILABLE === undefined ? undefined : Boolean(row.INVENTORY_AVAILABLE),
+  inventoryStock:
+    row.INVENTORY_STOCK === undefined || row.INVENTORY_STOCK === null
+      ? null
+      : Number(row.INVENTORY_STOCK),
+  effectiveAvailable:
+    row.EFFECTIVE_AVAILABLE === undefined ? Boolean(row.IS_AVAILABLE) : Boolean(row.EFFECTIVE_AVAILABLE),
 });
 
 const mapCategoryRecord = (row: CategoryApiRecord): MenuCategory => ({
@@ -125,6 +138,11 @@ export type CreateMenuPayload = {
   description: string | null;
   price: number;
   isAvailable: boolean;
+  inventoryMappings?: Array<{
+    product_id?: number | null;
+    material_id?: number | null;
+    quantity: number;
+  }>;
   imageFile?: File | null;
 };
 
@@ -134,6 +152,11 @@ export type UpdateMenuPayload = {
   description: string | null;
   price: number;
   isAvailable: boolean;
+  inventoryMappings?: Array<{
+    product_id?: number | null;
+    material_id?: number | null;
+    quantity: number;
+  }>;
   existingImagePath?: string | null; // backend keeps this if no new file
   imageFile?: File | null;
 };
@@ -165,6 +188,9 @@ export async function createMenu(payload: CreateMenuPayload): Promise<number> {
     IS_AVAILABLE: payload.isAvailable ? 1 : 0,
   };
   const form = buildFormData(body, payload.imageFile ?? null);
+  if (Array.isArray(payload.inventoryMappings)) {
+    form.append('INVENTORY_MAPPINGS', JSON.stringify(payload.inventoryMappings));
+  }
   const token = getAccessToken();
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -204,6 +230,9 @@ export async function updateMenu(id: string, payload: UpdateMenuPayload): Promis
     MENU_IMG: toRelativeImagePath(payload.existingImagePath) || '', // backend keeps if no new file
   };
   const form = buildFormData(body, payload.imageFile ?? null);
+  if (Array.isArray(payload.inventoryMappings)) {
+    form.append('INVENTORY_MAPPINGS', JSON.stringify(payload.inventoryMappings));
+  }
   const token = getAccessToken();
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;

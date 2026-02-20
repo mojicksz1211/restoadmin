@@ -6,7 +6,9 @@ import Branches from './pages/Branches';
 import Menu from './pages/Menu';
 import Orders from './pages/Orders';
 import Billing from './pages/Billing';
-import Inventory from './pages/Inventory';
+import Products from './pages/Products';
+import Materials from './pages/Materials';
+import ProductCategories from './pages/ProductCategories';
 import Tables from './pages/Tables';
 import StaffPage from './pages/Staff';
 import UserManagement from './pages/UserManagement';
@@ -101,9 +103,22 @@ const App: React.FC = () => {
           </ProtectedRoute>
         );
       case 'inventory':
+      case 'inventory_products':
         return (
           <ProtectedRoute user={authUser} requiredPermissions={[PERMISSION_LEVELS.ADMIN, PERMISSION_LEVELS.MANAGER]}>
-            <Inventory selectedBranchId={selectedBranchId} />
+            <Products selectedBranchId={selectedBranchId} />
+          </ProtectedRoute>
+        );
+      case 'inventory_materials':
+        return (
+          <ProtectedRoute user={authUser} requiredPermissions={[PERMISSION_LEVELS.ADMIN, PERMISSION_LEVELS.MANAGER]}>
+            <Materials selectedBranchId={selectedBranchId} />
+          </ProtectedRoute>
+        );
+      case 'inventory_categories':
+        return (
+          <ProtectedRoute user={authUser} requiredPermissions={[PERMISSION_LEVELS.ADMIN, PERMISSION_LEVELS.MANAGER]}>
+            <ProductCategories selectedBranchId={selectedBranchId} />
           </ProtectedRoute>
         );
       case 'staff':

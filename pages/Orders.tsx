@@ -51,6 +51,7 @@ type NewOrderItem = {
   name: string;
   unitPrice: number;
   qty: number;
+  availableStock?: number | null;
 };
 
 const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
@@ -192,7 +193,9 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
     ])
       .then(([menus, tables]) => {
         if (cancelled) return;
-        const usableMenus = (Array.isArray(menus) ? menus : []).filter((m) => m.active && m.isAvailable);
+        const usableMenus = (Array.isArray(menus) ? menus : []).filter(
+          (m) => m.active && (m.effectiveAvailable ?? m.isAvailable)
+        );
         setNewOrderMenus(usableMenus);
         setNewOrderTables(Array.isArray(tables) ? tables : []);
       })
@@ -242,21 +245,44 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
 
     const menu = newOrderMenus.find((m) => m.id === menuId);
     if (!menu) return;
+    const availableStock =
+      menu.inventoryTracked && menu.inventoryStock !== null && menu.inventoryStock !== undefined
+        ? Number(menu.inventoryStock)
+        : null;
 
     setNewOrderItems((prev) => {
       const idx = prev.findIndex((p) => p.menuId === menuId);
       if (idx >= 0) {
         const copy = [...prev];
+        if (availableStock !== null && copy[idx].qty + qty > availableStock) {
+          showStockWarning(menu.name, availableStock);
+          return prev;
+        }
         copy[idx] = { ...copy[idx], qty: copy[idx].qty + qty };
         return copy;
       }
+      if (availableStock !== null && qty > availableStock) {
+        showStockWarning(menu.name, availableStock);
+        return prev;
+      }
       return [
         ...prev,
-        { menuId, name: menu.name, unitPrice: Number(menu.price || 0), qty },
+        { menuId, name: menu.name, unitPrice: Number(menu.price || 0), qty, availableStock },
       ];
     });
     setNewOrderSelectedMenuId('');
     setNewOrderQty(1);
+  };
+
+  const showStockWarning = (name: string, availableStock: number) => {
+    setSwal({
+      type: 'warning',
+      title: 'Insufficient Stock',
+      text: `${name} has only ${availableStock} available.`,
+      confirmText: 'OK',
+      confirmVariant: 'orange',
+      onConfirm: () => setSwal(null),
+    });
   };
 
   const removeNewOrderItem = (menuId: string) => {
@@ -632,6 +658,9 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
                       {newOrderMenus.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.name} — ₱{Number(m.price).toLocaleString()}
+                          {m.inventoryTracked && m.inventoryStock !== null && m.inventoryStock !== undefined
+                            ? ` (Stock: ${Number(m.inventoryStock).toLocaleString()})`
+                            : ''}
                         </option>
                       ))}
                     </select>
