@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronRight, ChevronDown, Plus, Edit3, Trash2, AlertCircle, Loader2 } from 'lucide-react';
+import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronDown, Plus, Edit3, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 import { MOCK_BRANCHES } from '../constants';
 import { MenuCategory, MenuRecord, BranchRecord } from '../types';
 import { getMenuCategories, getMenus, createMenu, updateMenu, deleteMenu } from '../services/menuService';
@@ -97,7 +97,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [availability, setAvailability] = useState<'all' | 'available' | 'unavailable'>('all');
   const [loading, setLoading] = useState(true);
-  const [displayLimit, setDisplayLimit] = useState(10);
+  const [displayLimit, setDisplayLimit] = useState(50);
   const [error, setError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [menuTranslations, setMenuTranslations] = useState<Record<string, { name?: string; description?: string; categoryName?: string }>>({});
@@ -209,16 +209,14 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   }, [menus, searchTerm, selectedCategory, availability]);
 
   useEffect(() => {
-    setDisplayLimit(10);
     // Reset scroll position when filters change
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
   }, [searchTerm, selectedCategory, availability, menus]);
 
-  // Show items up to displayLimit (no auto-loading on scroll)
+  // Show items up to displayLimit
   const displayedMenus = filteredMenus.slice(0, displayLimit);
-  const hasMore = filteredMenus.length > displayLimit;
 
   const BATCH_SIZE = 50; // Google Translate API allows up to 128 per request; 50 keeps URL safe
 
@@ -455,7 +453,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   };
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">{t('menu_management')}</h1>
@@ -542,8 +540,8 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto" ref={scrollContainerRef} style={{ maxHeight: '600px', overflowY: 'auto' }}>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+        <div className="overflow-x-auto overflow-y-auto flex-1" ref={scrollContainerRef}>
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
@@ -644,48 +642,46 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="sticky bottom-0 bg-white border-t-2 border-slate-200 px-6 py-4 rounded-b-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 z-20 shadow-lg -mx-6 -mb-6">
-        <div className="flex items-center space-x-4 flex-wrap">
-          <p className="text-xs font-medium text-slate-500">
-            {t('showing')} <span className="text-slate-900 font-bold">{displayedMenus.length}</span> {t('of')}{' '}
-            <span className="text-slate-900 font-bold">{filteredMenus.length}</span> {t('menu_items_label')}
-            {hasMore && (
-              <span className="text-orange-600 font-semibold ml-1">
-                ({filteredMenus.length - displayedMenus.length} more)
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <p className="text-xs font-medium text-slate-500">
+              {t('showing')}{' '}
+              <span className="text-slate-900 font-bold">
+                {displayedMenus.length}
               </span>
-            )}
-          </p>
-          <div className="h-4 w-px bg-slate-200"></div>
-          <p className="text-xs text-slate-500 font-medium">
-            <span className="text-green-600 font-bold">{filteredMenus.filter(m => m.isAvailable).length}</span> {t('available')}
-          </p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <label className="text-xs font-medium text-slate-600 whitespace-nowrap">
-            Page Line Count:
-          </label>
-          <Dropdown
-            value={String(displayLimit)}
-            onChange={(v) => {
-              const limit = parseInt(v, 10);
-              // Immediately show the selected number of items
-              setDisplayLimit(Math.min(limit, filteredMenus.length));
-              // Scroll to top when limit changes
-              if (scrollContainerRef.current) {
-                scrollContainerRef.current.scrollTop = 0;
-              }
-            }}
-            options={[
-              { value: '10', label: '10' },
-              { value: '20', label: '20' },
-              { value: '50', label: '50' },
-              { value: '100', label: '100' },
-            ]}
-            buttonClassName="w-20"
-            openUpward={true}
-          />
+              {' '}{t('of')}{' '}
+              <span className="text-slate-900 font-bold">{filteredMenus.length}</span>
+              {' '}{t('menu_items_label')}
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <label className="text-xs font-medium text-slate-500">
+              {t('items_per_page') || 'Items per page'}:
+            </label>
+            <select
+              value={displayLimit}
+              onChange={(e) => {
+                const limit = Number(e.target.value);
+                setDisplayLimit(limit);
+                // Scroll to top when limit changes
+                if (scrollContainerRef.current) {
+                  scrollContainerRef.current.scrollTop = 0;
+                }
+              }}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
+            >
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={150}>150</option>
+              <option value={200}>200</option>
+              <option value={250}>250</option>
+              <option value={300}>300</option>
+              <option value={350}>350</option>
+              <option value={400}>400</option>
+              <option value={450}>450</option>
+              <option value={500}>500</option>
+            </select>
+          </div>
         </div>
       </div>
 

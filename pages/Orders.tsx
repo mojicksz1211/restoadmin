@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Eye,
-  ChevronRight,
   XCircle,
   Plus,
   Trash2,
@@ -62,8 +61,7 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
   const [branches, setBranches] = useState<BranchRecord[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(50);
 
   const [detailOrder, setDetailOrder] = useState<OrderRecord | null>(null);
   const [detailItems, setDetailItems] = useState<OrderItemRecord[]>([]);
@@ -123,16 +121,7 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
     return matchStatus && matchSearch;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / itemsPerPage));
-  const pageSafe = Math.min(currentPage, totalPages);
-  const paginatedOrders = filteredOrders.slice(
-    (pageSafe - 1) * itemsPerPage,
-    pageSafe * itemsPerPage
-  );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [statusFilter, searchTerm, orders.length]);
+  const displayedOrders = filteredOrders.slice(0, itemsPerPage);
 
   const openDetail = async (order: OrderRecord) => {
     setDetailOrder(order);
@@ -745,8 +734,8 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+        <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
@@ -787,7 +776,7 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
                   </td>
                 </tr>
               ) : (
-                paginatedOrders.map((order) => (
+                displayedOrders.map((order) => (
                   <tr
                     key={order.IDNo}
                     className="hover:bg-slate-50/50 transition-colors group"
@@ -865,13 +854,7 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
             <p className="text-xs font-medium text-slate-500">
               {t('showing')}{' '}
               <span className="text-slate-900 font-bold">
-                {filteredOrders.length === 0
-                  ? 0
-                  : (pageSafe - 1) * itemsPerPage + 1}
-              </span>
-              {' – '}
-              <span className="text-slate-900 font-bold">
-                {Math.min(pageSafe * itemsPerPage, filteredOrders.length)}
+                {displayedOrders.length}
               </span>
               {' '}{t('of')}{' '}
               <span className="text-slate-900 font-bold">{filteredOrders.length}</span>
@@ -879,38 +862,25 @@ const Orders: React.FC<OrdersProps> = ({ selectedBranchId }) => {
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={pageSafe <= 1}
-              className="p-2 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            <label className="text-xs font-medium text-slate-500">
+              {t('items_per_page') || 'Items per page'}:
+            </label>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => setItemsPerPage(Number(e.target.value))}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
             >
-              <ChevronRight className="w-4 h-4 rotate-180" />
-            </button>
-            <div className="flex space-x-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setCurrentPage(p)}
-                  className={`w-8 h-8 rounded-lg text-xs font-bold shadow-sm transition-all ${
-                    p === pageSafe
-                      ? 'bg-orange-500 text-white shadow-orange-500/20'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={pageSafe >= totalPages}
-              className="p-2 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={150}>150</option>
+              <option value={200}>200</option>
+              <option value={250}>250</option>
+              <option value={300}>300</option>
+              <option value={350}>350</option>
+              <option value={400}>400</option>
+              <option value={450}>450</option>
+              <option value={500}>500</option>
+            </select>
           </div>
         </div>
       </div>

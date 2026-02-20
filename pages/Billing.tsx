@@ -10,7 +10,6 @@ import {
   X,
   AlertCircle,
   Banknote,
-  ChevronRight,
   ChevronDown,
 } from 'lucide-react';
 import {
@@ -42,8 +41,7 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
   const [error, setError] = useState<string | null>(null);
   const [branches, setBranches] = useState<BranchRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(50);
 
   const [detailBilling, setDetailBilling] = useState<BillingDetail | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<PaymentTransaction[]>([]);
@@ -132,10 +130,7 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
     return matchSearch;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredBillings.length / itemsPerPage));
-  const pageSafe = Math.min(currentPage, totalPages);
-  const startIdx = (pageSafe - 1) * itemsPerPage;
-  const paginatedBillings = filteredBillings.slice(startIdx, startIdx + itemsPerPage);
+  const displayedBillings = filteredBillings.slice(0, itemsPerPage);
 
   const currentBranchName =
     selectedBranchId === 'all'
@@ -286,7 +281,7 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 300px)' }}>
         <div className="p-4 border-b border-slate-100 flex flex-wrap items-center gap-4">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -296,14 +291,13 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
-                setCurrentPage(1);
               }}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white"
             />
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
@@ -330,7 +324,7 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
                     </div>
                   </td>
                 </tr>
-              ) : paginatedBillings.length === 0 ? (
+              ) : displayedBillings.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="px-6 py-16 text-center text-slate-500">
                     <Receipt className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -339,7 +333,7 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
                   </td>
                 </tr>
               ) : (
-                paginatedBillings.map((b) => (
+                displayedBillings.map((b) => (
                   <tr key={b.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -410,11 +404,7 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
             <p className="text-xs font-medium text-slate-500">
               {t('showing')}{' '}
               <span className="text-slate-900 font-bold">
-                {filteredBillings.length === 0 ? 0 : startIdx + 1}
-              </span>
-              {' – '}
-              <span className="text-slate-900 font-bold">
-                {Math.min(startIdx + itemsPerPage, filteredBillings.length)}
+                {displayedBillings.length}
               </span>
               {' '}{t('of')}{' '}
               <span className="text-slate-900 font-bold">{filteredBillings.length}</span>
@@ -422,38 +412,25 @@ const Billing: React.FC<BillingProps> = ({ selectedBranchId }) => {
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={pageSafe <= 1}
-              className="p-2 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            <label className="text-xs font-medium text-slate-500">
+              {t('items_per_page') || 'Items per page'}:
+            </label>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => setItemsPerPage(Number(e.target.value))}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
             >
-              <ChevronRight className="w-4 h-4 rotate-180" />
-            </button>
-            <div className="flex space-x-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setCurrentPage(p)}
-                  className={`w-8 h-8 rounded-lg text-xs font-bold shadow-sm transition-all ${
-                    p === pageSafe
-                      ? 'bg-orange-500 text-white shadow-orange-500/20'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={pageSafe >= totalPages}
-              className="p-2 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={150}>150</option>
+              <option value={200}>200</option>
+              <option value={250}>250</option>
+              <option value={300}>300</option>
+              <option value={350}>350</option>
+              <option value={400}>400</option>
+              <option value={450}>450</option>
+              <option value={500}>500</option>
+            </select>
           </div>
         </div>
       </div>
