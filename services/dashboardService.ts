@@ -50,13 +50,6 @@ type ApiResponse<T> = {
   error?: string;
 };
 
-type ExpenseSummaryApi = {
-  total_expense: number | string;
-  auto_expense: number | string;
-  manual_expense: number | string;
-  current_month_expense: number | string;
-};
-
 import { getApiBaseUrl } from '../utils/apiConfig';
 
 const buildUrl = (path: string, params?: Record<string, string>) => {
@@ -78,34 +71,6 @@ const authHeaders = (): Record<string, string> => {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   return headers;
 };
-
-const toNumber = (value: unknown) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-async function getExpenseSummaryForKpis(branchId: string | null): Promise<ExpenseSummaryApi> {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - 30);
-  const params: Record<string, string> = {
-    date_from: start.toISOString().slice(0, 10),
-    date_to: end.toISOString().slice(0, 10),
-  };
-  if (branchId && branchId !== 'all') {
-    params.branch_id = branchId;
-  }
-
-  const response = await fetch(buildUrl('/expenses/reports/summary', params), {
-    credentials: 'include',
-    headers: authHeaders(),
-  });
-  const json = (await response.json()) as ApiResponse<ExpenseSummaryApi>;
-  if (!response.ok || !json.success) {
-    throw new Error(json.error || 'Failed to load expense summary');
-  }
-  return json.data;
-}
 
 /**
  * Fetch dashboard statistics from backend.
@@ -137,15 +102,9 @@ export async function getDashboardKpis(
   branchId: string | null,
   options?: { totalExpense?: number; previousPeriodMultiplier?: number }
 ): Promise<DashboardKpis> {
-  const [statsRes, revenueRes, expenseSummaryRes] = await Promise.all([
+  const [statsRes, revenueRes] = await Promise.all([
     getDashboardStats(branchId),
     getRevenueReport(branchId, 30),
-    getExpenseSummaryForKpis(branchId).catch(() => ({
-      total_expense: 0,
-      auto_expense: 0,
-      manual_expense: 0,
-      current_month_expense: 0,
-    })),
   ]);
   
   // Get discount and refund for the last 30 days
@@ -235,7 +194,7 @@ export async function getDashboardKpis(
     netSales = totalSales - totalRefund - totalDiscount;
   }
   
-  const expense = options?.totalExpense ?? toNumber(expenseSummaryRes.total_expense);
+  const expense = options?.totalExpense ?? 0;
   if (grossProfit === 0) {
     grossProfit = netSales - expense;
   }

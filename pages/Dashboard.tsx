@@ -117,7 +117,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   const [isDaraejungBranch, setIsDaraejungBranch] = useState<boolean>(false);
   
   // KimsBrother Total Sales Chart Controls
-  const [kimsBrotherChartType, setKimsBrotherChartType] = useState<'bar' | 'line'>('line');
+  const [kimsBrotherChartType, setKimsBrotherChartType] = useState<'bar' | 'line'>('bar');
   const [kimsBrotherChartPeriod, setKimsBrotherChartPeriod] = useState<'glance' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'>('glance');
   const [kimsBrotherChartTypeDropdownOpen, setKimsBrotherChartTypeDropdownOpen] = useState<boolean>(false);
   const [kimsBrotherChartPeriodDropdownOpen, setKimsBrotherChartPeriodDropdownOpen] = useState<boolean>(false);
@@ -337,18 +337,20 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (globalDatePickerInstance.current) {
-        globalDatePickerInstance.current.destroy();
-        globalDatePickerInstance.current = null;
+      const instance = globalDatePickerInstance.current;
+      if (instance && !Array.isArray(instance)) {
+        instance.destroy();
       }
+      globalDatePickerInstance.current = null;
     };
   }, []);
 
   // Update global date picker when dates change externally
   useEffect(() => {
-    if (globalDatePickerInstance.current) {
+    const instance = globalDatePickerInstance.current;
+    if (instance && !Array.isArray(instance)) {
       try {
-        const currentDates = globalDatePickerInstance.current.selectedDates;
+        const currentDates = instance.selectedDates;
         const currentStart = currentDates.length > 0 ? formatDateLocal(currentDates[0]) : null;
         const currentEnd = currentDates.length > 1 ? formatDateLocal(currentDates[1]) : null;
         
@@ -356,7 +358,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           // Parse the date strings back to Date objects for flatpickr
           const startDate = new Date(globalDateStart + 'T00:00:00');
           const endDate = new Date(globalDateEnd + 'T00:00:00');
-          globalDatePickerInstance.current.setDate([startDate, endDate], false);
+          instance.setDate([startDate, endDate], false);
         }
       } catch (error) {
         console.error('Error updating global date picker:', error);
@@ -370,8 +372,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     if (!isKimsBrothersDashboard) return;
     const el = paymentMethodsDatePickerRef.current;
     if (!el) return;
-    if (paymentMethodsFlatpickrInstance.current) {
-      paymentMethodsFlatpickrInstance.current.destroy();
+    const existingInstance = paymentMethodsFlatpickrInstance.current;
+    if (existingInstance && !Array.isArray(existingInstance)) {
+      existingInstance.destroy();
       paymentMethodsFlatpickrInstance.current = null;
     }
     const init = () => {
@@ -397,16 +400,18 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
     };
     requestAnimationFrame(init);
     return () => {
-      if (paymentMethodsFlatpickrInstance.current) {
-        paymentMethodsFlatpickrInstance.current.destroy();
-        paymentMethodsFlatpickrInstance.current = null;
+      const instance = paymentMethodsFlatpickrInstance.current;
+      if (instance && !Array.isArray(instance)) {
+        instance.destroy();
       }
+      paymentMethodsFlatpickrInstance.current = null;
     };
   }, [isKimsBrothersDashboard]);
 
   useEffect(() => {
-    if (isKimsBrothersDashboard && paymentMethodsFlatpickrInstance.current) {
-      paymentMethodsFlatpickrInstance.current.setDate([paymentMethodsDateStart, paymentMethodsDateEnd], false);
+    const instance = paymentMethodsFlatpickrInstance.current;
+    if (isKimsBrothersDashboard && instance && !Array.isArray(instance)) {
+      instance.setDate([paymentMethodsDateStart, paymentMethodsDateEnd], false);
     }
   }, [isKimsBrothersDashboard, paymentMethodsDateStart, paymentMethodsDateEnd]);
 
@@ -415,8 +420,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
   // Discount date range - flatpickr (init when modal opens)
   useEffect(() => {
     if (!discountModalOpen || !discountDatePickerRef.current) return;
-    if (discountFlatpickrInstance.current) {
-      discountFlatpickrInstance.current.destroy();
+    const existingInstance = discountFlatpickrInstance.current;
+    if (existingInstance && !Array.isArray(existingInstance)) {
+      existingInstance.destroy();
     }
     discountFlatpickrInstance.current = flatpickr(discountDatePickerRef.current, {
       mode: 'range',
@@ -435,23 +441,26 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       },
     });
     return () => {
-      if (discountFlatpickrInstance.current) {
-        discountFlatpickrInstance.current.destroy();
+      const instance = discountFlatpickrInstance.current;
+      if (instance && !Array.isArray(instance)) {
+        instance.destroy();
       }
     };
   }, [discountModalOpen]);
 
   useEffect(() => {
-    if (discountModalOpen && discountFlatpickrInstance.current) {
-      discountFlatpickrInstance.current.setDate([discountDateStart, discountDateEnd], false);
+    const instance = discountFlatpickrInstance.current;
+    if (discountModalOpen && instance && !Array.isArray(instance)) {
+      instance.setDate([discountDateStart, discountDateEnd], false);
     }
   }, [discountModalOpen, discountDateStart, discountDateEnd]);
 
   // Receipt date range - flatpickr (init when modal opens)
   useEffect(() => {
     if (!receiptModalOpen || !receiptDatePickerRef.current) return;
-    if (receiptFlatpickrInstance.current) {
-      receiptFlatpickrInstance.current.destroy();
+    const existingInstance = receiptFlatpickrInstance.current;
+    if (existingInstance && !Array.isArray(existingInstance)) {
+      existingInstance.destroy();
     }
     receiptFlatpickrInstance.current = flatpickr(receiptDatePickerRef.current, {
       mode: 'range',
@@ -470,15 +479,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
       },
     });
     return () => {
-      if (receiptFlatpickrInstance.current) {
-        receiptFlatpickrInstance.current.destroy();
+      const instance = receiptFlatpickrInstance.current;
+      if (instance && !Array.isArray(instance)) {
+        instance.destroy();
       }
     };
   }, [receiptModalOpen]);
 
   useEffect(() => {
-    if (receiptModalOpen && receiptFlatpickrInstance.current) {
-      receiptFlatpickrInstance.current.setDate([receiptDateStart, receiptDateEnd], false);
+    const instance = receiptFlatpickrInstance.current;
+    if (receiptModalOpen && instance && !Array.isArray(instance)) {
+      instance.setDate([receiptDateStart, receiptDateEnd], false);
     }
   }, [receiptModalOpen, receiptDateStart, receiptDateEnd]);
 
@@ -968,10 +979,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           try {
             if (typeof item.date === 'string') {
               dateStr = item.date.slice(0, 10);
-            } else if (item.date instanceof Date) {
-              dateStr = formatDateLocal(item.date);
             } else {
-              dateStr = formatDateLocal(new Date(item.date));
+              const dateObj = new Date(item.date as any);
+              if (isNaN(dateObj.getTime())) return;
+              dateStr = formatDateLocal(dateObj);
             }
             const current = top5Products[productIdx].dailyBreakdown.get(dateStr) || 0;
             top5Products[productIdx].dailyBreakdown.set(dateStr, current + revenue);
@@ -1217,11 +1228,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
         let dateStr: string;
         if (typeof item.date === 'string') {
           dateStr = item.date.slice(0, 10);
-        } else if (item.date instanceof Date) {
-          dateStr = item.date.toISOString().slice(0, 10);
         } else {
           try {
-            dateStr = new Date(item.date).toISOString().slice(0, 10);
+            const dateObj = new Date(item.date as any);
+            if (isNaN(dateObj.getTime())) return;
+            dateStr = dateObj.toISOString().slice(0, 10);
           } catch {
             return;
           }
@@ -1819,7 +1830,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
           {/* Charts and Advanced Analytics for Kim's Brothers */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {/* Total sales: time-series chart */}
-        <div className="xl:col-span-2 group relative bg-white p-4 md:p-6 rounded-2xl shadow-lg border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-hidden">
+        <div className="xl:col-span-2 group relative bg-white p-4 md:p-6 rounded-2xl shadow-lg border border-slate-100 hover:shadow-2xl transition-all duration-300 overflow-visible">
           {/* Premium gradient accent bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-green-600" />
           
@@ -1872,8 +1883,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
             {/* Global Date Range Picker */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-slate-200">
               <div className="flex items-center gap-3 flex-wrap">
-                <label className="text-sm font-semibold text-slate-700 whitespace-nowrap flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-slate-500" />
+                <label className="text-sm font-bold text-slate-900 whitespace-nowrap flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-slate-700" />
                   Date Range:
                 </label>
                 <input
@@ -1882,7 +1893,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                   readOnly
                   value={`${globalDateStart} - ${globalDateEnd}`}
                   placeholder="Select date range"
-                  className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-900 placeholder-slate-400 font-medium cursor-pointer min-w-[240px] hover:border-slate-400 transition-colors"
+                  className="px-3 py-2 text-sm font-semibold border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-900 placeholder-slate-500 cursor-pointer min-w-[240px] hover:border-slate-400 transition-colors"
                 />
                 <button
                   onClick={() => {
@@ -1891,7 +1902,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     setGlobalDateStart(formatDateLocal(startOfMonth));
                     setGlobalDateEnd(formatDateLocal(today));
                   }}
-                  className="px-3 py-2 text-sm font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-300 hover:border-slate-400"
+                  className="px-3 py-2 text-sm font-semibold text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border-2 border-slate-300 hover:border-slate-400"
                 >
                   This Month
                 </button>
@@ -1903,12 +1914,12 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     setGlobalDateStart(formatDateLocal(thirtyDaysAgo));
                     setGlobalDateEnd(formatDateLocal(today));
                   }}
-                  className="px-3 py-2 text-sm font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-300 hover:border-slate-400"
+                  className="px-3 py-2 text-sm font-semibold text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border-2 border-slate-300 hover:border-slate-400"
                 >
                   Last 30 Days
                 </button>
               </div>
-              <div className="text-sm text-slate-600 font-medium">
+              <div className="text-sm font-semibold text-slate-900">
                 {formatDateForDisplay(globalDateStart)} - {formatDateForDisplay(globalDateEnd)}
               </div>
             </div>
@@ -1919,36 +1930,40 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               <div className="relative chart-type-dropdown flex-shrink-0">
                 <button
                   onClick={() => setKimsBrotherChartTypeDropdownOpen(!kimsBrotherChartTypeDropdownOpen)}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent whitespace-nowrap"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent whitespace-nowrap"
                 >
                   <span className="lowercase">{kimsBrotherChartType === 'bar' ? 'bar chart' : 'line graph'}</span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${kimsBrotherChartTypeDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {kimsBrotherChartTypeDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-50">
+                  <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-lg shadow-xl z-[120]">
                     <button
                       onClick={() => {
                         setKimsBrotherChartType('line');
                         setKimsBrotherChartTypeDropdownOpen(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between rounded-t-lg ${
-                        kimsBrotherChartType === 'line' ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
+                      className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between rounded-t-lg transition-colors ${
+                        kimsBrotherChartType === 'line'
+                          ? 'bg-slate-100 text-slate-900 font-semibold'
+                          : 'text-slate-800 hover:bg-slate-50'
                       }`}
                     >
                       <span className="lowercase">line graph</span>
-                      {kimsBrotherChartType === 'line' && <Check className="w-4 h-4" />}
+                      {kimsBrotherChartType === 'line' && <Check className="w-4 h-4 text-emerald-600" />}
                     </button>
                     <button
                       onClick={() => {
                         setKimsBrotherChartType('bar');
                         setKimsBrotherChartTypeDropdownOpen(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between rounded-b-lg ${
-                        kimsBrotherChartType === 'bar' ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
+                      className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between rounded-b-lg transition-colors ${
+                        kimsBrotherChartType === 'bar'
+                          ? 'bg-slate-100 text-slate-900 font-semibold'
+                          : 'text-slate-800 hover:bg-slate-50'
                       }`}
                     >
                       <span className="lowercase">bar chart</span>
-                      {kimsBrotherChartType === 'bar' && <Check className="w-4 h-4" />}
+                      {kimsBrotherChartType === 'bar' && <Check className="w-4 h-4 text-emerald-600" />}
                     </button>
                   </div>
                 )}
@@ -1958,16 +1973,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
               <div className="relative chart-period-dropdown flex-shrink-0">
                 <button
                   onClick={() => setKimsBrotherChartPeriodDropdownOpen(!kimsBrotherChartPeriodDropdownOpen)}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent whitespace-nowrap"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent whitespace-nowrap"
                 >
                   <span className="lowercase">{kimsBrotherChartPeriod === 'glance' ? 'glance' : kimsBrotherChartPeriod === 'quarterly' ? 'Quarterly' : kimsBrotherChartPeriod === 'yearly' ? 'By year' : kimsBrotherChartPeriod === 'monthly' ? 'monthly' : 'Weekly'}</span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${kimsBrotherChartPeriodDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {kimsBrotherChartPeriodDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-36 bg-white border border-slate-200 rounded-lg shadow-lg z-50">
+                  <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-lg shadow-xl z-[120]">
                     <button
                       disabled
-                      className="w-full px-4 py-2 text-left text-sm text-slate-400 cursor-not-allowed"
+                      className="w-full px-4 py-2 text-left text-xs font-semibold text-slate-400 cursor-not-allowed uppercase tracking-wide"
                     >
                       By time zone
                     </button>
@@ -1976,60 +1991,70 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                         setKimsBrotherChartPeriod('glance');
                         setKimsBrotherChartPeriodDropdownOpen(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between ${
-                        kimsBrotherChartPeriod === 'glance' ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
+                      className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between transition-colors ${
+                        kimsBrotherChartPeriod === 'glance'
+                          ? 'bg-slate-100 text-slate-900 font-semibold'
+                          : 'text-slate-800 hover:bg-slate-50'
                       }`}
                     >
                       <span>glance</span>
-                      {kimsBrotherChartPeriod === 'glance' && <Check className="w-4 h-4" />}
+                      {kimsBrotherChartPeriod === 'glance' && <Check className="w-4 h-4 text-emerald-600" />}
                     </button>
                     <button
                       onClick={() => {
                         setKimsBrotherChartPeriod('weekly');
                         setKimsBrotherChartPeriodDropdownOpen(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between ${
-                        kimsBrotherChartPeriod === 'weekly' ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
+                      className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between transition-colors ${
+                        kimsBrotherChartPeriod === 'weekly'
+                          ? 'bg-slate-100 text-slate-900 font-semibold'
+                          : 'text-slate-800 hover:bg-slate-50'
                       }`}
                     >
                       <span>Weekly</span>
-                      {kimsBrotherChartPeriod === 'weekly' && <Check className="w-4 h-4" />}
+                      {kimsBrotherChartPeriod === 'weekly' && <Check className="w-4 h-4 text-emerald-600" />}
                     </button>
                     <button
                       onClick={() => {
                         setKimsBrotherChartPeriod('monthly');
                         setKimsBrotherChartPeriodDropdownOpen(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between ${
-                        kimsBrotherChartPeriod === 'monthly' ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
+                      className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between transition-colors ${
+                        kimsBrotherChartPeriod === 'monthly'
+                          ? 'bg-slate-100 text-slate-900 font-semibold'
+                          : 'text-slate-800 hover:bg-slate-50'
                       }`}
                     >
                       <span>monthly</span>
-                      {kimsBrotherChartPeriod === 'monthly' && <Check className="w-4 h-4" />}
+                      {kimsBrotherChartPeriod === 'monthly' && <Check className="w-4 h-4 text-emerald-600" />}
                     </button>
                     <button
                       onClick={() => {
                         setKimsBrotherChartPeriod('quarterly');
                         setKimsBrotherChartPeriodDropdownOpen(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between ${
-                        kimsBrotherChartPeriod === 'quarterly' ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
+                      className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between transition-colors ${
+                        kimsBrotherChartPeriod === 'quarterly'
+                          ? 'bg-slate-100 text-slate-900 font-semibold'
+                          : 'text-slate-800 hover:bg-slate-50'
                       }`}
                     >
                       <span>Quarterly</span>
-                      {kimsBrotherChartPeriod === 'quarterly' && <Check className="w-4 h-4" />}
+                      {kimsBrotherChartPeriod === 'quarterly' && <Check className="w-4 h-4 text-emerald-600" />}
                     </button>
                     <button
                       onClick={() => {
                         setKimsBrotherChartPeriod('yearly');
                         setKimsBrotherChartPeriodDropdownOpen(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between rounded-b-lg ${
-                        kimsBrotherChartPeriod === 'yearly' ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
+                      className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between rounded-b-lg transition-colors ${
+                        kimsBrotherChartPeriod === 'yearly'
+                          ? 'bg-slate-100 text-slate-900 font-semibold'
+                          : 'text-slate-800 hover:bg-slate-50'
                       }`}
                     >
                       <span>By year</span>
-                      {kimsBrotherChartPeriod === 'yearly' && <Check className="w-4 h-4" />}
+                      {kimsBrotherChartPeriod === 'yearly' && <Check className="w-4 h-4 text-emerald-600" />}
                     </button>
                   </div>
                 )}
@@ -2062,7 +2087,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       dataKey="name" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} 
+                      tick={{fill: '#1e293b', fontSize: 12, fontWeight: 600}} 
                       interval={0}
                       angle={-45}
                       textAnchor="end"
@@ -2071,7 +2096,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}}
+                      tick={{fill: '#1e293b', fontSize: 12, fontWeight: 600}}
                       tickFormatter={(value) => {
                         const numValue = Number(value);
                         if (numValue >= 1000000) {
@@ -2118,7 +2143,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                       dataKey="name" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} 
+                      tick={{fill: '#1e293b', fontSize: 12, fontWeight: 600}} 
                       interval={0}
                       angle={-45}
                       textAnchor="end"
@@ -2127,7 +2152,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}}
+                      tick={{fill: '#1e293b', fontSize: 12, fontWeight: 600}}
                       tickFormatter={(value) => {
                         const numValue = Number(value);
                         if (numValue >= 1000000) {
@@ -2471,14 +2496,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedBranchId }) => {
                     angle={-45}
                     textAnchor="end"
                     height={55}
-                    tick={{ fill: '#64748b', fontSize: 8, fontWeight: 600 }}
+                    tick={{ fill: '#1e293b', fontSize: 10, fontWeight: 600 }}
                     tickCount={30}
                     dy={4}
                   />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }}
+                    tick={{ fill: '#1e293b', fontSize: 12, fontWeight: 600 }}
                     tickFormatter={(v) => `₱${(Number(v) / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
