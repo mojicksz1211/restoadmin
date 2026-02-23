@@ -139,6 +139,50 @@ const Materials: React.FC<MaterialsProps> = ({ selectedBranchId }) => {
     setFeedback({ type, text });
   };
 
+  const parseNumericValue = (value: unknown) => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    const raw = String(value ?? '').trim();
+    if (!raw) return 0;
+    const normalized = raw.includes(',') && !raw.includes('.')
+      ? raw.replace(',', '.')
+      : raw.replace(/,/g, '');
+    const numericText = normalized.replace(/[^0-9.-]/g, '');
+    const parsed = Number(numericText);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const calculateTotalCost = (item: InventoryMaterial) => {
+    if (Number.isFinite(Number(item.totalCost))) return Number(item.totalCost);
+    // Fallback if backend row has no TOTAL_COST yet.
+    const stock = parseNumericValue(item.stock);
+    const unitCost = parseNumericValue(item.unitCost);
+    const total = stock * unitCost;
+    return Number.isFinite(total) ? total : 0;
+  };
+
+  const compactUnitLabel = (unitRaw?: string) => {
+    const unit = String(unitRaw || '').trim();
+    if (!unit) return '';
+    const parenMatch = unit.match(/\(([^)]+)\)/);
+    if (parenMatch && parenMatch[1]) return parenMatch[1].trim();
+    return unit;
+  };
+
+  const formatMoneyWithUnit = (amount: number, unitRaw?: string) => {
+    const unitLabel = compactUnitLabel(unitRaw);
+    if (!unitLabel) return `₱${amount.toLocaleString()}`;
+    return `₱${amount.toLocaleString()} / ${unitLabel}`;
+  };
+
+  const formatStockWithUnit = (item: InventoryMaterial) => {
+    const stock = parseNumericValue(item.stock);
+    const unitLabel = compactUnitLabel(item.unit);
+    const formattedStock = Number.isInteger(stock)
+      ? stock.toLocaleString()
+      : stock.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return unitLabel ? `${formattedStock} ${unitLabel}` : formattedStock;
+  };
+
   const resetAddForm = () => {
     setSelectedCategory(null);
     setSelectedStatus({ value: 'Active', label: 'Active' });
@@ -295,6 +339,7 @@ const Materials: React.FC<MaterialsProps> = ({ selectedBranchId }) => {
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Unit</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Unit Cost</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Stock</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Total Cost</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
@@ -317,8 +362,11 @@ const Materials: React.FC<MaterialsProps> = ({ selectedBranchId }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-slate-600">{item.unit}</td>
-                  <td className="px-6 py-4 text-slate-700">₱{item.unitCost.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-slate-700">{item.stock}</td>
+                  <td className="px-6 py-4 text-slate-700">{formatMoneyWithUnit(item.unitCost, item.unit)}</td>
+                  <td className="px-6 py-4 text-slate-700">{formatStockWithUnit(item)}</td>
+                  <td className="px-6 py-4 text-slate-900 font-semibold">
+                    ₱{calculateTotalCost(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-1.5">
                       <button

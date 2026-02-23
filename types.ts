@@ -125,3 +125,81 @@ export interface MenuRecord {
   inventoryStock?: number | null;
   effectiveAvailable?: boolean;
 }
+
+export interface ExpenseRecord {
+  id: string;
+  branchId: string;
+  branchName?: string;
+  expenseDate: string;
+  category: string;
+  sourceType: string;
+  sourceRefId?: string | null;
+  description: string;
+  amount: number;
+  isAuto: boolean;
+  encodedBy?: string | null;
+  encodedByName?: string | null;
+  encodedAt?: string | null;
+  editedBy?: string | null;
+  editedAt?: string | null;
+}
+
+export interface ExpenseSummary {
+  totalExpense: number;
+  autoExpense: number;
+  manualExpense: number;
+  currentMonthExpense: number;
+}
+
+export interface ExpenseCategoryBreakdownItem {
+  category: string;
+  entryCount: number;
+  totalAmount: number;
+}
+
+export interface ExpenseTrendPoint {
+  period: string;
+  totalAmount: number;
+}
+
+export interface StockInRecord {
+  id: string;
+  branchId: string;
+  resourceType: 'product' | 'material';
+  resourceId: string;
+  resourceName: string;
+  resourceUnit?: string;
+  qtyAdded: number;
+  unitCost: number;
+  prevUnitCost?: number | null;
+  newUnitCost?: number | null;
+  totalCost: number;
+  supplierName: string;
+  referenceNo: string;
+  note: string;
+  stockInDate: string;
+  encodedAt?: string | null;
+}
+
+export interface InventoryAuditTrailRecord {
+  eventId: string;
+  eventType: 'stock_in' | 'stock_out';
+  branchId: string;
+  resourceType: 'product' | 'material';
+  resourceId: string;
+  resourceName: string;
+  resourceUnit?: string;
+  eventDate: string;
+  eventDt?: string | null;
+  qtyChange: number;
+  stockBefore?: number | null;
+  stockAfter?: number | null;
+  costBefore?: number | null;
+  costAfter?: number | null;
+  txnUnitCost?: number | null;
+  txnTotalCost?: number | null;
+  supplierName?: string;
+  referenceNo?: string;
+  note?: string;
+  active?: boolean;
+}

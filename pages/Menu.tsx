@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Filter, RefreshCw, Search, Utensils, AlertTriangle, CheckCircle2, X, ChevronDown, Plus, Edit3, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 import { MOCK_BRANCHES } from '../constants';
@@ -14,7 +15,13 @@ interface MenuProps {
   selectedBranchId: string;
 }
 
-type DropdownOption = { value: string; label: string; disabled?: boolean };
+type DropdownOption = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+  stockValue?: number;
+  unitLabel?: string;
+};
 type RecipeRow = {
   id: string;
   resourceType: '' | 'product' | 'material';
@@ -32,19 +39,191 @@ const Dropdown: React.FC<{
   menuClassName?: string;
   itemClassName?: string;
   openUpward?: boolean;
-}> = ({ value, options, onChange, onOpen, placeholder = 'Select...', buttonClassName = '', menuClassName = '', itemClassName = '', openUpward = false }) => {
+  autoFlip?: boolean;
+  usePortal?: boolean;
+}> = ({
+  value,
+  options,
+  onChange,
+  onOpen,
+  placeholder = 'Select...',
+  buttonClassName = '',
+  menuClassName = '',
+  itemClassName = '',
+  openUpward = false,
+  autoFlip = false,
+  usePortal = false,
+}) => {
   const [open, setOpen] = useState(false);
+  const [autoOpenUpward, setAutoOpenUpward] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 240 });
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const selected = options.find((o) => o.value === value);
+  const resolvedOpenUpward = openUpward || autoOpenUpward;
+
+  const getClosestVerticalScrollParent = (node: HTMLElement | null): HTMLElement | null => {
+    let parent = node?.parentElement ?? null;
+    while (parent) {
+      const style = window.getComputedStyle(parent);
+      const overflowY = style.overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') return parent;
+      parent = parent.parentElement;
+    }
+    return null;
+  };
+
+  const computeAutoFlipDirection = () => {
+    if (!autoFlip || openUpward || !ref.current) {
+      setAutoOpenUpward(false);
+      return;
+    }
+
+    const triggerRect = ref.current.getBoundingClientRect();
+    const scrollParent = getClosestVerticalScrollParent(ref.current);
+    const boundaryTop = scrollParent ? scrollParent.getBoundingClientRect().top : 0;
+    const boundaryBottom = scrollParent ? scrollParent.getBoundingClientRect().bottom : window.innerHeight;
+
+    const spaceBelow = Math.max(0, boundaryBottom - triggerRect.bottom - 8);
+    const spaceAbove = Math.max(0, triggerRect.top - boundaryTop - 8);
+    const estimatedMenuHeight = Math.min(360, Math.max(120, options.length * 42));
+
+    setAutoOpenUpward(spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow);
+  };
+
+  const updatePortalPosition = useCallback(() => {
+    if (!usePortal || !ref.current) return;
+    const triggerRect = ref.current.getBoundingClientRect();
+    const viewportPadding = 8;
+    const menuGap = 4;
+    const preferredMaxHeight = 240;
+    const minHeight = 120;
+
+    let nextMaxHeight = preferredMaxHeight;
+    let nextTop = triggerRect.bottom + menuGap;
+
+    if (resolvedOpenUpward) {
+      const availableAbove = Math.max(0, triggerRect.top - viewportPadding - menuGap);
+      nextMaxHeight = Math.max(minHeight, Math.min(preferredMaxHeight, availableAbove));
+      nextTop = Math.max(viewportPadding, triggerRect.top - menuGap - nextMaxHeight);
+    } else {
+      const availableBelow = Math.max(0, window.innerHeight - triggerRect.bottom - viewportPadding - menuGap);
+      nextMaxHeight = Math.max(minHeight, Math.min(preferredMaxHeight, availableBelow));
+      nextTop = triggerRect.bottom + menuGap;
+      if (nextTop + nextMaxHeight > window.innerHeight - viewportPadding) {
+        nextMaxHeight = Math.max(minHeight, window.innerHeight - viewportPadding - nextTop);
+      }
+    }
+
+    const width = Math.max(120, triggerRect.width);
+    const left = Math.min(
+      Math.max(viewportPadding, triggerRect.left),
+      Math.max(viewportPadding, window.innerWidth - width - viewportPadding)
+    );
+
+    setMenuPosition({
+      top: nextTop,
+      left,
+      width,
+      maxHeight: nextMaxHeight,
+    });
+  }, [resolvedOpenUpward, usePortal]);
+
+  useEffect(() => {
+    if (!open || !usePortal) return;
+    updatePortalPosition();
+    const handleReposition = () => updatePortalPosition();
+    window.addEventListener('resize', handleReposition);
+    window.addEventListener('scroll', handleReposition, true);
+    return () => {
+      window.removeEventListener('resize', handleReposition);
+      window.removeEventListener('scroll', handleReposition, true);
+    };
+  }, [open, usePortal, updatePortalPosition]);
+
+  useEffect(() => {
+    if (!open || !usePortal) return;
+    updatePortalPosition();
+  }, [open, usePortal, resolvedOpenUpward, options.length, updatePortalPosition]);
+
+  const dropdownMenu = (
+    <div
+      ref={menuRef}
+      className={[
+        'py-1.5 rounded-xl border border-slate-200 bg-white shadow-lg z-50 overflow-auto',
+        usePortal ? '' : 'absolute left-0 right-0 max-h-60',
+        usePortal ? '' : resolvedOpenUpward ? 'bottom-full mb-1' : 'top-full mt-1',
+        menuClassName,
+      ].join(' ')}
+      style={
+        usePortal
+          ? {
+              position: 'fixed',
+              top: menuPosition.top,
+              left: menuPosition.left,
+              width: menuPosition.width,
+              maxHeight: menuPosition.maxHeight,
+              zIndex: 220,
+            }
+          : undefined
+      }
+    >
+      {options.map((opt) => {
+        const isSelected = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            disabled={opt.disabled}
+            onClick={() => {
+              if (opt.disabled) return;
+              onChange(opt.value);
+              setOpen(false);
+            }}
+            className={[
+              'w-full text-left px-4 py-2.5 text-sm font-medium transition-colors',
+              opt.disabled
+                ? 'text-slate-300 cursor-not-allowed'
+                : isSelected
+                  ? 'bg-orange-100 text-orange-700'
+                  : 'text-slate-700 hover:bg-slate-50',
+              itemClassName,
+            ].join(' ')}
+          >
+            {opt.stockValue !== undefined ? (
+              <>
+                {opt.label}{' '}
+                <span className="text-slate-400">(</span>
+                <span className={isSelected ? 'text-orange-700 font-semibold' : 'text-orange-600 font-medium'}>Stock:</span>{' '}
+                <span>{opt.stockValue.toLocaleString()}</span>
+                {opt.unitLabel ? (
+                  <>
+                    <span className={isSelected ? 'text-slate-400' : 'text-slate-400'}> (</span>
+                    <span>{opt.unitLabel}</span>
+                    <span className={isSelected ? 'text-slate-400' : 'text-slate-400'}>)</span>
+                  </>
+                ) : null}
+                <span className="text-slate-400">)</span>
+              </>
+            ) : (
+              opt.label
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="relative" ref={ref}>
@@ -53,7 +232,12 @@ const Dropdown: React.FC<{
         onClick={() =>
           setOpen((o) => {
             const nextOpen = !o;
-            if (nextOpen) onOpen?.();
+            if (nextOpen) {
+              computeAutoFlipDirection();
+              onOpen?.();
+            } else {
+              setAutoOpenUpward(false);
+            }
             return nextOpen;
           })
         }
@@ -62,45 +246,33 @@ const Dropdown: React.FC<{
           buttonClassName,
         ].join(' ')}
       >
-        <span className={selected ? 'text-slate-900' : 'text-slate-400'}>{selected?.label ?? placeholder}</span>
+        <span className={selected ? 'text-slate-900' : 'text-slate-400'}>
+          {selected ? (
+            selected.stockValue !== undefined ? (
+              <>
+                {selected.label}{' '}
+                <span className="text-slate-400">(</span>
+                <span className="text-orange-600 font-medium">Stock:</span>{' '}
+                <span className="text-slate-700">{selected.stockValue.toLocaleString()}</span>
+                {selected.unitLabel ? (
+                  <>
+                    <span className="text-slate-400"> (</span>
+                    <span className="text-slate-700">{selected.unitLabel}</span>
+                    <span className="text-slate-400">)</span>
+                  </>
+                ) : null}
+                <span className="text-slate-400">)</span>
+              </>
+            ) : (
+              selected.label
+            )
+          ) : (
+            placeholder
+          )}
+        </span>
         <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
-        <div
-          className={[
-            'absolute left-0 right-0 py-1.5 rounded-xl border border-slate-200 bg-white shadow-lg z-50 max-h-60 overflow-auto',
-            openUpward ? 'bottom-full mb-1' : 'top-full mt-1',
-            menuClassName,
-          ].join(' ')}
-        >
-          {options.map((opt) => {
-            const isSelected = opt.value === value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                disabled={opt.disabled}
-                onClick={() => {
-                  if (opt.disabled) return;
-                  onChange(opt.value);
-                  setOpen(false);
-                }}
-                className={[
-                  'w-full text-left px-4 py-2.5 text-sm font-medium transition-colors',
-                  opt.disabled
-                    ? 'text-slate-300 cursor-not-allowed'
-                    : isSelected
-                      ? 'bg-orange-100 text-orange-700'
-                      : 'text-slate-700 hover:bg-slate-50',
-                  itemClassName,
-                ].join(' ')}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {open && (usePortal ? createPortal(dropdownMenu, document.body) : dropdownMenu)}
     </div>
   );
 };
@@ -141,12 +313,14 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
   const [inventoryMaterials, setInventoryMaterials] = useState<InventoryMaterial[]>([]);
   const [recipeRows, setRecipeRows] = useState<RecipeRow[]>([]);
   const [loadingRecipeRefs, setLoadingRecipeRefs] = useState(false);
-  const modalContentScrollRef = useRef<HTMLDivElement>(null);
   const nudgeModalScrollForRecipeDropdown = () => {
     const el = modalContentScrollRef.current;
     if (!el) return;
     el.scrollBy({ top: 140, behavior: 'smooth' });
   };
+  const [showUnmappedModal, setShowUnmappedModal] = useState(false);
+  const [unmappedSearch, setUnmappedSearch] = useState('');
+  const modalContentScrollRef = useRef<HTMLDivElement>(null);
 
 
   const createRecipeRow = (partial?: Partial<RecipeRow>): RecipeRow => ({
@@ -155,6 +329,14 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
     resourceId: partial?.resourceId ?? '',
     quantity: partial?.quantity ?? '1',
   });
+
+  const compactUnitLabel = (unitRaw?: string) => {
+    const unit = String(unitRaw || '').trim();
+    if (!unit) return '';
+    const parenMatch = unit.match(/\(([^)]+)\)/);
+    if (parenMatch && parenMatch[1]) return parenMatch[1].trim();
+    return unit;
+  };
 
   // SweetAlert-style dialogs (success / error / confirmation)
   const [swal, setSwal] = useState<{
@@ -242,6 +424,35 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
       return matchesSearch && matchesCategory && matchesAvailability;
     });
   }, [menus, searchTerm, selectedCategory, availability]);
+
+  const inventoryValidation = useMemo(() => {
+    const candidateMenus = menus.filter((menu) => menu.active);
+    const unmappedMenus = candidateMenus.filter((menu) => {
+      const menuAvailable = menu.effectiveAvailable ?? menu.isAvailable;
+      return menuAvailable && !menu.inventoryTracked;
+    });
+    const mappedButUnavailable = candidateMenus.filter((menu) => {
+      const menuAvailable = menu.effectiveAvailable ?? menu.isAvailable;
+      return menu.inventoryTracked && !menuAvailable;
+    });
+
+    return {
+      totalActive: candidateMenus.length,
+      unmappedMenus,
+      mappedButUnavailable,
+    };
+  }, [menus]);
+
+  const filteredUnmappedMenus = useMemo(() => {
+    const q = unmappedSearch.trim().toLowerCase();
+    if (!q) return inventoryValidation.unmappedMenus;
+    return inventoryValidation.unmappedMenus.filter((menu) =>
+      [menu.name, menu.categoryName, menu.branchName, menu.branchCode]
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [inventoryValidation.unmappedMenus, unmappedSearch]);
 
   useEffect(() => {
     // Reset scroll position when filters change
@@ -646,6 +857,66 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
         </div>
       )}
 
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-800">Inventory Mapping Health</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Active menus: <span className="font-semibold text-slate-700">{inventoryValidation.totalActive}</span> ·
+              Unmapped: <span className="font-semibold text-red-600"> {inventoryValidation.unmappedMenus.length}</span> ·
+              Mapped but unavailable: <span className="font-semibold text-orange-600"> {inventoryValidation.mappedButUnavailable.length}</span>
+            </p>
+          </div>
+          {inventoryValidation.unmappedMenus.length === 0 ? (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+              All available menus are mapped
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+              Action needed: configure recipe mapping
+            </span>
+          )}
+        </div>
+
+        {inventoryValidation.unmappedMenus.length > 0 && (
+          <div className="mt-3 border border-slate-200 bg-slate-50 rounded-xl p-3">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-xs font-semibold text-slate-700">
+              Menus without recipe mapping:
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setUnmappedSearch('');
+                  setShowUnmappedModal(true);
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                View all
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {inventoryValidation.unmappedMenus.slice(0, 6).map((menu) => (
+                <button
+                  key={menu.id}
+                  type="button"
+                  onClick={() => handleOpenEdit(menu)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+                  title="Open menu and set mapping"
+                >
+                  {menu.name}
+                </button>
+              ))}
+              {inventoryValidation.unmappedMenus.length > 6 && (
+                <span className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-300 text-slate-700">
+                  +{inventoryValidation.unmappedMenus.length - 6} more
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 300px)' }}>
         <div className="overflow-x-auto overflow-y-auto flex-1" ref={scrollContainerRef}>
           <table className="w-full text-left border-collapse">
@@ -823,7 +1094,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
             }}
           ></div>
           <div className="relative min-h-screen flex items-center justify-center p-4 sm:p-6">
-            <div className="bg-white w-full max-w-xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-orange-500 rounded-xl text-white">
@@ -975,9 +1246,19 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                       {recipeRows.map((row) => {
                         const itemOptions: DropdownOption[] =
                           row.resourceType === 'product'
-                            ? inventoryProducts.map((item) => ({ value: item.id, label: `${item.name} (Stock: ${item.stock})` }))
+                            ? inventoryProducts.map((item) => ({
+                                value: item.id,
+                                label: item.name,
+                                stockValue: item.stock,
+                                unitLabel: compactUnitLabel(item.unit),
+                              }))
                             : row.resourceType === 'material'
-                            ? inventoryMaterials.map((item) => ({ value: item.id, label: `${item.name} (Stock: ${item.stock})` }))
+                            ? inventoryMaterials.map((item) => ({
+                                value: item.id,
+                                label: item.name,
+                                stockValue: item.stock,
+                                unitLabel: compactUnitLabel(item.unit),
+                              }))
                             : [];
 
                         return (
@@ -1000,6 +1281,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                               ]}
                               onOpen={nudgeModalScrollForRecipeDropdown}
                               buttonClassName="py-2.5 px-3 text-sm"
+                              autoFlip
                             />
                             <Dropdown
                               value={row.resourceId}
@@ -1009,6 +1291,7 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                               options={[{ value: '', label: 'Select Item' }, ...itemOptions]}
                               onOpen={nudgeModalScrollForRecipeDropdown}
                               buttonClassName="py-2.5 px-3 text-sm"
+                              autoFlip
                             />
                             <input
                               type="number"
@@ -1139,6 +1422,59 @@ const Menu: React.FC<MenuProps> = ({ selectedBranchId }) => {
                   {swal.confirmText || 'OK'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUnmappedModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="text-base font-bold text-slate-900">Unmapped Menu Items</h4>
+                <p className="text-xs text-slate-500">Configure recipe mappings to ensure deterministic stock deduction.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUnmappedModal(false)}
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-slate-100">
+              <input
+                type="text"
+                value={unmappedSearch}
+                onChange={(e) => setUnmappedSearch(e.target.value)}
+                placeholder="Search unmapped menus..."
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
+              />
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1">
+              {filteredUnmappedMenus.length === 0 ? (
+                <p className="text-sm text-slate-500">No results.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {filteredUnmappedMenus.map((menu) => (
+                    <button
+                      key={menu.id}
+                      type="button"
+                      onClick={() => {
+                        setShowUnmappedModal(false);
+                        handleOpenEdit(menu);
+                      }}
+                      className="text-left px-3 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
+                    >
+                      <p className="text-sm font-medium text-slate-800 truncate">{menu.name}</p>
+                      <p className="text-xs text-slate-500 truncate">{menu.categoryName || 'Uncategorized'}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

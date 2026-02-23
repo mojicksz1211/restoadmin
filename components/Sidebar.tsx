@@ -17,7 +17,8 @@ import {
   X,
   Receipt,
   CreditCard,
-  LayoutGrid
+  LayoutGrid,
+  BarChart3
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { BranchOption, AuthUser } from '../types';
@@ -102,6 +103,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: CreditCard,
       canAccess: canViewBilling
     },
+    {
+      id: 'expenses',
+      label: t('expenses'),
+      icon: BarChart3,
+      canAccess: canViewBilling
+    },
     { 
       id: 'inventory', 
       label: t('inventory'), 
@@ -131,6 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Filter menu items based on permissions
   const menuItems = allMenuItems.filter(item => item.canAccess);
   const inventorySubItems = [
+    { id: 'inventory_stock_in', label: 'Stock In' },
     { id: 'inventory_products', label: 'Products' },
     { id: 'inventory_materials', label: 'Materials' },
     { id: 'inventory_categories', label: 'Product Categories' },

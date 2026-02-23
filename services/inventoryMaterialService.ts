@@ -10,6 +10,7 @@ export type InventoryMaterial = {
   status: 'Active' | 'Inactive';
   stock: number;
   unitCost: number;
+  totalCost: number;
   sku: string;
   barcode: string;
   description: string;
@@ -31,6 +32,7 @@ type MaterialApi = {
   STATUS?: string;
   STOCK?: number | string;
   UNIT_COST?: number | string;
+  TOTAL_COST?: number | string;
   SKU?: string | null;
   BARCODE?: string | null;
   DESCRIPTION?: string | null;
@@ -69,6 +71,7 @@ const mapRow = (row: MaterialApi): InventoryMaterial => ({
   status: row.STATUS === 'Inactive' ? 'Inactive' : 'Active',
   stock: Number(row.STOCK || 0),
   unitCost: Number(row.UNIT_COST || 0),
+  totalCost: Number(row.TOTAL_COST || 0),
   sku: row.SKU || '',
   barcode: row.BARCODE || '',
   description: row.DESCRIPTION || '',
