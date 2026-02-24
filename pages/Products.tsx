@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import Select, { type SingleValue, type StylesConfig } from 'react-select';
@@ -61,17 +61,7 @@ const Products: React.FC<ProductsProps> = ({ selectedBranchId }) => {
   const [deletingProduct, setDeletingProduct] = useState<InventoryProduct | null>(null);
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
   const branches: Array<{ id: string; name: string }> = [];
-
-  const categoryOptions: SelectOption[] = useMemo(
-    () =>
-      getProductCategories()
-        .filter((category) => category.status === 'Active')
-        .map((category) => ({
-        value: category.id,
-        label: category.name,
-      })),
-    [isAddModalOpen]
-  );
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
 
   const unitOptions: SelectOption[] = [
     { value: 'grams', label: 'Grams (g)' },
@@ -156,6 +146,25 @@ const Products: React.FC<ProductsProps> = ({ selectedBranchId }) => {
   useEffect(() => {
     loadProducts();
   }, [selectedBranchId]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const data = await getProductCategories(selectedBranchId);
+        const options = data
+          .filter((category) => category.status === 'Active')
+          .map<SelectOption>((category) => ({
+            value: category.id,
+            label: category.name,
+          }));
+        setCategoryOptions(options);
+      } catch (error) {
+        setCategoryOptions([]);
+        showFeedback('error', error instanceof Error ? error.message : 'Failed to load categories.');
+      }
+    };
+    void loadCategories();
+  }, [selectedBranchId, isAddModalOpen]);
 
   const getStockStatus = (stock: number, productStatus?: 'Active' | 'Inactive') => {
     if (productStatus === 'Inactive') return { label: 'inactive', color: 'bg-slate-200 text-slate-600', icon: null };

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, CheckCircle2, Edit3, Plus, Search, Tags, Trash2 } from 'lucide-react';
 import Select, { type SingleValue, type StylesConfig } from 'react-select';
@@ -26,7 +26,7 @@ type FeedbackMessage = {
 
 const ProductCategories: React.FC<ProductCategoriesProps> = ({ selectedBranchId }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [categories, setCategories] = useState<ProductCategoryItem[]>(() => getProductCategories());
+  const [categories, setCategories] = useState<ProductCategoryItem[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryStatus, setNewCategoryStatus] = useState<ProductCategoryItem['status']>('Active');
@@ -35,6 +35,7 @@ const ProductCategories: React.FC<ProductCategoriesProps> = ({ selectedBranchId 
   const [editingCategoryStatus, setEditingCategoryStatus] = useState<ProductCategoryItem['status']>('Active');
   const [deletingCategory, setDeletingCategory] = useState<ProductCategoryItem | null>(null);
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const filteredCategories = useMemo(() => {
     const lowered = searchTerm.trim().toLowerCase();
@@ -84,7 +85,24 @@ const ProductCategories: React.FC<ProductCategoriesProps> = ({ selectedBranchId 
     setFeedback({ type, text });
   };
 
-  const handleAddCategory = () => {
+  const loadCategories = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getProductCategories(selectedBranchId);
+      setCategories(data);
+    } catch (error) {
+      setCategories([]);
+      showFeedback('error', error instanceof Error ? error.message : 'Failed to load categories.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCategories();
+  }, [selectedBranchId]);
+
+  const handleAddCategory = async () => {
     const trimmed = newCategoryName.trim();
     if (!trimmed) {
       showFeedback('error', 'Category name is required.');
@@ -95,15 +113,19 @@ const ProductCategories: React.FC<ProductCategoriesProps> = ({ selectedBranchId 
       showFeedback('error', 'Category already exists.');
       return;
     }
-    const next = addProductCategory(trimmed, newCategoryStatus);
-    setCategories(next);
-    setNewCategoryName('');
-    setNewCategoryStatus('Active');
-    setIsAdding(false);
-    showFeedback('success', 'Category added successfully.');
+    try {
+      const next = await addProductCategory(trimmed, newCategoryStatus, selectedBranchId);
+      setCategories(next);
+      setNewCategoryName('');
+      setNewCategoryStatus('Active');
+      setIsAdding(false);
+      showFeedback('success', 'Category added successfully.');
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : 'Failed to add category.');
+    }
   };
 
-  const handleEditCategory = () => {
+  const handleEditCategory = async () => {
     if (!editingCategory) return;
     const trimmed = editingCategoryName.trim();
     if (!trimmed) {
@@ -117,12 +139,21 @@ const ProductCategories: React.FC<ProductCategoriesProps> = ({ selectedBranchId 
       showFeedback('error', 'Category already exists.');
       return;
     }
-    const next = updateProductCategory(editingCategory.id, trimmed, editingCategoryStatus);
-    setCategories(next);
-    setEditingCategory(null);
-    setEditingCategoryName('');
-    setEditingCategoryStatus('Active');
-    showFeedback('success', 'Category updated successfully.');
+    try {
+      const next = await updateProductCategory(
+        editingCategory.id,
+        trimmed,
+        editingCategoryStatus,
+        selectedBranchId
+      );
+      setCategories(next);
+      setEditingCategory(null);
+      setEditingCategoryName('');
+      setEditingCategoryStatus('Active');
+      showFeedback('success', 'Category updated successfully.');
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : 'Failed to update category.');
+    }
   };
 
   const openEditCategoryModal = (category: ProductCategoryItem) => {
@@ -131,18 +162,16 @@ const ProductCategories: React.FC<ProductCategoriesProps> = ({ selectedBranchId 
     setEditingCategoryStatus(category.status);
   };
 
-  const handleDeleteCategory = () => {
+  const handleDeleteCategory = async () => {
     if (!deletingCategory) return;
-    const before = categories.length;
-    const next = deleteProductCategory(deletingCategory.id);
-    if (next.length === before) {
-      showFeedback('error', 'Failed to delete category.');
+    try {
+      const next = await deleteProductCategory(deletingCategory.id, selectedBranchId);
+      setCategories(next);
       setDeletingCategory(null);
-      return;
+      showFeedback('success', 'Category deleted successfully.');
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : 'Failed to delete category.');
     }
-    setCategories(next);
-    setDeletingCategory(null);
-    showFeedback('success', 'Category deleted successfully.');
   };
 
   const openDeleteCategoryModal = (category: ProductCategoryItem) => {
