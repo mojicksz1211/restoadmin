@@ -31,3 +31,27 @@
 .animate-pulse-slow {
   animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Custom orange-themed scrollbar for sidebar and scrollable panels */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #f97316 rgba(15, 23, 42, 0.9);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #fed7aa, #f97316);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ea580c;
+}

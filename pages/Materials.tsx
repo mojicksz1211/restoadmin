@@ -46,6 +46,7 @@ const Materials: React.FC<MaterialsProps> = ({ selectedBranchId }) => {
   const [editingStatus, setEditingStatus] = useState<SelectOption>({ value: 'Active', label: 'Active' });
   const [editingUnit, setEditingUnit] = useState<SelectOption | null>(null);
   const [deletingMaterial, setDeletingMaterial] = useState<InventoryMaterial | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
 
   const filteredMaterials = useMemo(() => {
     const lowered = searchTerm.trim().toLowerCase();
@@ -68,16 +69,6 @@ const Materials: React.FC<MaterialsProps> = ({ selectedBranchId }) => {
   }, [selectedBranchId]);
 
   const branchLabel = selectedBranchId === 'all' ? t('all_branches') : `Branch ${selectedBranchId}`;
-  const categoryOptions: SelectOption[] = useMemo(
-    () =>
-      getProductCategories()
-        .filter((category) => category.status === 'Active')
-        .map((category) => ({
-          value: category.id,
-          label: category.name,
-        })),
-    [isAddModalOpen, editingMaterial]
-  );
   const statusOptions: SelectOption[] = [
     { value: 'Active', label: 'Active' },
     { value: 'Inactive', label: 'Inactive' },
@@ -138,6 +129,25 @@ const Materials: React.FC<MaterialsProps> = ({ selectedBranchId }) => {
   const showFeedback = (type: FeedbackMessage['type'], text: string) => {
     setFeedback({ type, text });
   };
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const data = await getProductCategories(selectedBranchId);
+        const options = data
+          .filter((category) => category.status === 'Active')
+          .map<SelectOption>((category) => ({
+            value: category.id,
+            label: category.name,
+          }));
+        setCategoryOptions(options);
+      } catch (error) {
+        setCategoryOptions([]);
+        showFeedback('error', error instanceof Error ? error.message : 'Failed to load categories.');
+      }
+    };
+    void loadCategories();
+  }, [selectedBranchId, isAddModalOpen, editingMaterial]);
 
   const parseNumericValue = (value: unknown) => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
